@@ -14,6 +14,7 @@ import {
   Key
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
+import { SUPABASE_SQL_SCHEMA } from '../../lib/supabase';
 
 export const IntegrationsView: React.FC = () => {
   const {
@@ -180,16 +181,46 @@ export const IntegrationsView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <button
-              type="button"
-              onClick={handleTestSupabase}
-              disabled={isTestingSupabase}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupabase ? 'animate-spin' : ''}`} />
-              <span>{isAr ? 'اختبار اتصال Supabase' : 'Test Supabase Connection'}</span>
-            </button>
+          <div className="flex flex-wrap items-center justify-between pt-2 gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleTestSupabase}
+                disabled={isTestingSupabase}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isTestingSupabase ? 'animate-spin' : ''}`} />
+                <span>{isAr ? 'اختبار اتصال Supabase' : 'Test Supabase Connection'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const blob = new Blob([SUPABASE_SQL_SCHEMA], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'supabase-schema.sql';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  showToast(isAr ? 'تم تحميل ملف supabase-schema.sql بنجاح!' : 'supabase-schema.sql downloaded!');
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <span>{isAr ? '📥 تحميل ملف supabase-schema.sql' : '📥 Download SQL Schema'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+                  showToast(isAr ? 'تم نسخ كود SQL الخاص بـ Supabase إلى الحافظة!' : 'Copied SQL Schema to clipboard!');
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-stone-200 bg-stone-50 hover:bg-stone-100 text-stone-800 text-xs font-bold transition-colors cursor-pointer"
+              >
+                <span>{isAr ? '📋 نسخ كود SQL' : '📋 Copy SQL'}</span>
+              </button>
+            </div>
 
             {supabaseTestStatus === 'success' && (
               <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold">
@@ -197,6 +228,19 @@ export const IntegrationsView: React.FC = () => {
                 <span>{isAr ? 'الاتصال بقاعدة البيانات ناجح ومستقر' : 'Connected Successfully'}</span>
               </span>
             )}
+          </div>
+
+          {/* Quick Steps Box */}
+          <div className="mt-3 p-3.5 rounded-xl bg-stone-50 border border-stone-200/90 text-xs space-y-1.5 text-stone-600">
+            <div className="font-bold text-stone-800 flex items-center gap-1.5">
+              <span>{isAr ? '⚡ خطوات إضافة قاعدة البيانات في Supabase:' : '⚡ Quick Setup Steps:'}</span>
+            </div>
+            <ol className="list-decimal list-inside space-y-1 text-[11px] text-stone-600">
+              <li>{isAr ? 'أنشئ مشروعاً جديداً في منصة Supabase وافتح نافذة SQL Editor.' : 'Create a new project on Supabase and open SQL Editor.'}</li>
+              <li>{isAr ? 'انسخ محتوى ملف supabase-schema.sql بالضغط على "نسخ كود SQL" أعلاه ثم الصقه واضغط Run.' : 'Copy the SQL code above, paste it into SQL Editor, and click Run.'}</li>
+              <li>{isAr ? 'انسخ Project URL و anon public key من Project Settings > API وضعهما في الحقلين أعلاه.' : 'Copy Project URL & anon key from Settings > API and paste them above.'}</li>
+              <li>{isAr ? 'بيانات دخول الإدارة الافتراضية المضمنة في القاعدة: اسم المستخدم admin وكلمة المرور laith2026.' : 'Default admin login credentials: username admin, password laith2026.'}</li>
+            </ol>
           </div>
         </div>
 

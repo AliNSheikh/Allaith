@@ -15,7 +15,6 @@ import { MaintenanceModal } from './components/MaintenanceModal';
 import { RequestPhoneModal } from './components/RequestPhoneModal';
 import { SiteDetailsModal } from './components/SiteDetailsModal';
 import { ExchangeRateModal } from './components/ExchangeRateModal';
-import { StorefrontChatbot } from './components/StorefrontChatbot';
 import { Footer } from './components/Footer';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { CheckCircle } from 'lucide-react';
@@ -137,9 +136,6 @@ const MainLayout: React.FC = () => {
 
       {/* Real-Time Dollar Exchange Rate Modal & Calculator (sp-today.com) */}
       <ExchangeRateModal />
-
-      {/* AI Customer Service Chatbot (Gemini) */}
-      <StorefrontChatbot />
 
       {/* Bottom Navigation for Mobile Devices */}
       <MobileBottomNav />

@@ -354,7 +354,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [phoneRequests, setPhoneRequests] = useState<PhoneRequest[]>(() => {
     try {
       const saved = localStorage.getItem('allaith_phone_requests');
-      return saved ? JSON.parse(saved) : initialPhoneRequests;
+      if (saved) {
+        const parsed: PhoneRequest[] = JSON.parse(saved);
+        return parsed.filter((r) => r.id !== 'req-1');
+      }
+      return initialPhoneRequests;
     } catch {
       return initialPhoneRequests;
     }
@@ -1237,7 +1241,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem('allaith_orders');
-      return saved ? JSON.parse(saved) : initialOrders;
+      if (saved) {
+        const parsed: Order[] = JSON.parse(saved);
+        return parsed.filter((o) => o.id !== 'ord-101' && o.id !== 'ord-102');
+      }
+      return initialOrders;
     } catch {
       return initialOrders;
     }
@@ -1484,7 +1492,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>(() => {
     try {
       const saved = localStorage.getItem('allaith_maintenance');
-      return saved ? JSON.parse(saved) : initialMaintenanceRequests;
+      if (saved) {
+        const parsed: MaintenanceRequest[] = JSON.parse(saved);
+        return parsed.filter((m) => m.id !== 'maint-1' && m.id !== 'maint-2');
+      }
+      return initialMaintenanceRequests;
     } catch {
       return initialMaintenanceRequests;
     }

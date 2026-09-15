@@ -46,6 +46,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const [justAdded, setJustAdded] = useState(false);
 
   const isAr = locale === 'ar';
+  
+  if (product.is_archived) {
+    return null;
+  }
+
   const title = isAr ? product.title_ar : product.title_en;
   const inWishlist = isInWishlist(product.id);
 

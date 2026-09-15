@@ -81,32 +81,36 @@ export const CatalogPage: React.FC = () => {
     setCompareWarning(null);
   };
 
-  // Extract unique brands
+  // Active unarchived products and categories only on storefront catalog
+  const activeProducts = useMemo(() => products.filter((p) => !p.is_archived), [products]);
+  const activeCategories = useMemo(() => categories.filter((c) => !c.is_archived), [categories]);
+
+  // Extract unique brands from active products
   const brands = useMemo(() => {
     const bSet = new Set<string>();
-    products.forEach((p) => {
+    activeProducts.forEach((p) => {
       if (p.brand) bSet.add(p.brand);
     });
     return Array.from(bSet);
-  }, [products]);
+  }, [activeProducts]);
 
   // Counts for quick condition badges
   const conditionCounts = useMemo(() => {
     let newCount = 0;
     let usedCount = 0;
-    products.forEach((p) => {
+    activeProducts.forEach((p) => {
       if (p.condition === 'used') {
         usedCount++;
       } else {
         newCount++;
       }
     });
-    return { all: products.length, new: newCount, used: usedCount };
-  }, [products]);
+    return { all: activeProducts.length, new: newCount, used: usedCount };
+  }, [activeProducts]);
 
   // Filtered and Sorted products
   const filteredProducts = useMemo(() => {
-    let list = [...products];
+    let list = [...activeProducts];
 
     // Condition filter (New vs Used)
     if (selectedCondition === 'new') {
@@ -492,11 +496,11 @@ export const CatalogPage: React.FC = () => {
                   }`}
                 >
                   <span>{t('all')}</span>
-                  <span className="text-[11px] opacity-70">({products.length})</span>
+                  <span className="text-[11px] opacity-70">({activeProducts.length})</span>
                 </button>
 
-                {categories.map((cat) => {
-                  const catCount = products.filter((p) => p.category_id === cat.id).length;
+                {activeCategories.map((cat) => {
+                  const catCount = activeProducts.filter((p) => p.category_id === cat.id).length;
                   const isSelected = activeCategoryFilter === cat.id;
 
                   return (
@@ -732,7 +736,7 @@ export const CatalogPage: React.FC = () => {
                   >
                     {t('all')}
                   </button>
-                  {categories.map((c) => (
+                  {activeCategories.map((c) => (
                     <button
                       key={c.id}
                       type="button"

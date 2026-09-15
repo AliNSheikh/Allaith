@@ -462,31 +462,39 @@ export const OrdersView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100 font-medium">
-                  {filteredMaintenance.map((m) => (
-                    <tr key={m.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-stone-900">{m.ticket_number}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-stone-800">{m.customer_name}</div>
-                        <div className="font-mono text-[11px] text-stone-500">{m.phone}</div>
-                      </td>
-                      <td className="py-3 px-3 font-semibold text-stone-700">
-                        {m.device_type} - {m.device_model}
-                      </td>
-                      <td className="py-3 px-3 text-stone-600 max-w-[220px] truncate">{m.issue_description}</td>
-                      <td className="py-3 px-3">
-                        <select
-                          value={m.status}
-                          onChange={(e) => updateMaintenanceStatus(m.id, e.target.value as any)}
-                          className="text-[11px] font-bold px-2 py-1 rounded-lg border bg-blue-50 text-blue-800 border-blue-200 cursor-pointer"
-                        >
-                          <option value="new">{isAr ? 'جديد' : 'New'}</option>
-                          <option value="in_progress">{isAr ? 'قيد الفحص' : 'In Progress'}</option>
-                          <option value="resolved">{isAr ? 'تم الإصلاح' : 'Resolved'}</option>
-                          <option value="cancelled">{isAr ? 'ملغي' : 'Cancelled'}</option>
-                        </select>
+                  {filteredMaintenance.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-stone-400">
+                        {isAr ? 'لا توجد طلبات صيانة حالياً' : 'No maintenance requests found'}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredMaintenance.map((m) => (
+                      <tr key={m.id} className="hover:bg-stone-50/70 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-stone-900">{m.request_number || (m as any).ticket_number}</td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-stone-800">{m.customer_name}</div>
+                          <div className="font-mono text-[11px] text-stone-500">{m.phone}</div>
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-stone-700">
+                          {m.device_type} - {m.device_model}
+                        </td>
+                        <td className="py-3 px-3 text-stone-600 max-w-[220px] truncate">{m.issue_description}</td>
+                        <td className="py-3 px-3">
+                          <select
+                            value={m.status}
+                            onChange={(e) => updateMaintenanceStatus(m.id, e.target.value as any)}
+                            className="text-[11px] font-bold px-2 py-1 rounded-lg border bg-blue-50 text-blue-800 border-blue-200 cursor-pointer"
+                          >
+                            <option value="new">{isAr ? 'جديد' : 'New'}</option>
+                            <option value="in_progress">{isAr ? 'قيد الفحص' : 'In Progress'}</option>
+                            <option value="resolved">{isAr ? 'تم الإصلاح' : 'Resolved'}</option>
+                            <option value="cancelled">{isAr ? 'ملغي' : 'Cancelled'}</option>
+                          </select>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -505,22 +513,30 @@ export const OrdersView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100 font-medium">
-                  {filteredPhoneRequests.map((p) => (
-                    <tr key={p.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-stone-900">{p.request_number}</td>
-                      <td className="py-3 px-3">
-                        <div className="font-bold text-stone-800">{p.customer_name}</div>
-                        <div className="font-mono text-[11px] text-stone-500">{p.phone}</div>
-                      </td>
-                      <td className="py-3 px-3 font-semibold text-stone-800">{p.device_type}</td>
-                      <td className="py-3 px-3 text-stone-600 max-w-[250px] truncate">{p.specifications}</td>
-                      <td className="py-3 px-3">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800">
-                          {p.status}
-                        </span>
+                  {filteredPhoneRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-stone-400">
+                        {isAr ? 'لا توجد طلبات توفير أجهزة حالياً' : 'No device requests found'}
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredPhoneRequests.map((p) => (
+                      <tr key={p.id} className="hover:bg-stone-50/70 transition-colors">
+                        <td className="py-3 px-4 font-mono font-bold text-stone-900">{p.request_number}</td>
+                        <td className="py-3 px-3">
+                          <div className="font-bold text-stone-800">{p.customer_name}</div>
+                          <div className="font-mono text-[11px] text-stone-500">{p.phone}</div>
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-stone-800">{p.device_type}</td>
+                        <td className="py-3 px-3 text-stone-600 max-w-[250px] truncate">{p.specifications}</td>
+                        <td className="py-3 px-3">
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800">
+                            {p.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

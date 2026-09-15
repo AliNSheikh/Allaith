@@ -73,8 +73,11 @@ export const Header: React.FC = () => {
     }
   }, [isSearchOpen]);
 
+  const activeProducts = products.filter((p) => !p.is_archived);
+  const activeCategories = categories.filter((c) => !c.is_archived);
+
   const searchResults = searchInput.trim()
-    ? products.filter((p) => {
+    ? activeProducts.filter((p) => {
         const query = searchInput.toLowerCase();
         return (
           p.title_ar.toLowerCase().includes(query) ||
@@ -235,10 +238,10 @@ export const Header: React.FC = () => {
                     }`}
                   >
                     <span>{t('all')}</span>
-                    <span className="text-[10px] opacity-70 font-mono">({products.length})</span>
+                    <span className="text-[10px] opacity-70 font-mono">({activeProducts.length})</span>
                   </button>
-                  {categories.map((c) => {
-                    const count = products.filter((p) => p.category_id === c.id).length;
+                  {activeCategories.map((c) => {
+                    const count = activeProducts.filter((p) => p.category_id === c.id).length;
                     return (
                       <button
                         key={c.id}
@@ -456,7 +459,7 @@ export const Header: React.FC = () => {
               {t('categories')}
             </div>
             <div className="flex flex-wrap gap-1.5 px-3">
-              {categories.map((c) => (
+              {activeCategories.map((c) => (
                 <button
                   key={c.id}
                   type="button"

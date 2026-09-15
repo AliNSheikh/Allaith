@@ -34,7 +34,8 @@ export const ProductDetailPage: React.FC = () => {
     showToast
   } = useStore();
 
-  const product = products.find((p) => p.id === selectedProductId) || products[0];
+  const activeProducts = products.filter((p) => !p.is_archived);
+  const product = products.find((p) => p.id === selectedProductId && !p.is_archived) || activeProducts[0];
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [variantName: string]: string }>(() => {
@@ -89,8 +90,8 @@ export const ProductDetailPage: React.FC = () => {
   const effectivePrice = (matchedCombination as any)?.price || product.price;
   const effectiveStock = (matchedCombination as any)?.stock_quantity ?? product.stock_quantity;
 
-  // Related products from same category
-  const relatedProducts = products
+  // Related products from same category (excluding archived)
+  const relatedProducts = activeProducts
     .filter((p) => p.id !== product.id && p.category_id === product.category_id)
     .slice(0, 4);
 

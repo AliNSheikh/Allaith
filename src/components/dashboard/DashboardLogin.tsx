@@ -80,7 +80,7 @@ export const DashboardLogin: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-stone-300 mb-1.5">
-              {isAr ? 'البريد الإلكتروني أو اسم المستخدم' : 'Email or Username'}
+              {isAr ? 'اسم المستخدم أو البريد الإلكتروني' : 'Username or Email'}
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 start-0 flex items-center ps-3.5 pointer-events-none text-stone-500">
@@ -93,7 +93,7 @@ export const DashboardLogin: React.FC = () => {
                 required
                 autoComplete="username"
                 className="w-full bg-stone-900/90 border border-stone-700 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 text-stone-100 rounded-xl py-2.5 ps-10 pe-3 text-sm transition-all outline-none"
-                placeholder={isAr ? 'admin@allaith.com أو اسم المستخدم' : 'admin@allaith.com or username'}
+                placeholder={isAr ? 'اسم المستخدم (مثال: admin)' : 'Username (e.g. admin)'}
               />
             </div>
           </div>

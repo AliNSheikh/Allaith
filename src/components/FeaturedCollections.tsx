@@ -17,9 +17,12 @@ export const FeaturedCollections: React.FC = () => {
   const [showAll, setShowAll] = useState<boolean>(false);
   const isAr = locale === 'ar';
 
+  const activeProducts = products.filter((p) => !p.is_archived);
+  const activeCategories = categories.filter((c) => !c.is_archived);
+
   const filteredProducts = activeTab === 'all'
-    ? products
-    : products.filter((p) => p.category_id === activeTab);
+    ? activeProducts
+    : activeProducts.filter((p) => p.category_id === activeTab);
 
   const INITIAL_LIMIT = 10;
   const hasMore = filteredProducts.length > INITIAL_LIMIT;
@@ -64,7 +67,7 @@ export const FeaturedCollections: React.FC = () => {
               {t('all')}
             </button>
 
-            {categories.map((cat) => (
+            {activeCategories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
