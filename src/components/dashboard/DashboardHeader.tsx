@@ -76,12 +76,6 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       desc_ar: 'ربط Google Analytics, Ads, Search Console وتوليد خريطة الموقع XML',
       desc_en: 'GA4, Ads, Search Console integrations and live XML sitemap'
     },
-    supabase: {
-      ar: 'قاعدة بيانات Supabase السحابية',
-      en: 'Supabase Cloud Database',
-      desc_ar: 'ربط قاعدة البيانات العلائقية PostgreSQL وتزامن الجداول سحابياً',
-      desc_en: 'Connect Supabase PostgreSQL and execute schema migrations'
-    },
     settings: {
       ar: 'إعدادات المتجر العامة',
       en: 'Store General Settings',

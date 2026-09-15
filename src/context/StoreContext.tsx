@@ -17,7 +17,7 @@ import {
   VisitorStatDay,
   AnalyticsVisitRecord
 } from '../types';
-import { getSupabaseClient } from '../lib/supabase';
+import { getSupabaseClient, authenticateAdminWithSupabase } from '../lib/supabase';
 import { fetchLiveDollarRate, DEFAULT_FALLBACK_RATE } from '../utils/exchangeRateClient';
 import { translations } from '../locales/translations';
 import {
@@ -77,7 +77,7 @@ interface StoreContextType {
   // Private Admin Portal Navigation & Security
   isPrivateAdminRoute: boolean;
   isAdminAuthenticated: boolean;
-  loginAdmin: (user: string, pass: string) => boolean;
+  loginAdmin: (user: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   logoutAdmin: () => void;
   getPrivateAdminLink: () => string;
   exitAdminPortal: () => void;
@@ -301,17 +301,21 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const loginAdmin = (usernameInput: string, passwordInput: string): boolean => {
-    const validUser = (storeSettings.admin_username || 'admin').trim();
-    const validPass = (storeSettings.admin_password || 'laith2026').trim();
+  const loginAdmin = async (usernameInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await authenticateAdminWithSupabase(usernameInput, passwordInput, {
+      customUrl: storeSettings.supabase_url,
+      customKey: storeSettings.supabase_anon_key,
+      fallbackUsername: storeSettings.admin_username || 'admin',
+      fallbackPassword: storeSettings.admin_password || 'laith2026'
+    });
 
-    if (usernameInput.trim() === validUser && passwordInput.trim() === validPass) {
+    if (result.success) {
       setIsAdminAuthenticated(true);
       sessionStorage.setItem('allaith_admin_auth', 'true');
       showToast(locale === 'ar' ? 'تم تسجيل الدخول إلى لوحة التحكم بنجاح!' : 'Logged in to dashboard successfully!');
-      return true;
+      return { success: true };
     }
-    return false;
+    return { success: false, error: result.error };
   };
 
   const logoutAdmin = () => {

@@ -6,8 +6,11 @@ let currentUrl: string | null = null;
 let currentKey: string | null = null;
 
 export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClient | null {
-  const targetUrl = url || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_url') : null);
-  const targetKey = anonKey || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_key') : null);
+  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+
+  const targetUrl = url || envUrl || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_url') : null);
+  const targetKey = anonKey || envKey || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_key') : null);
 
   if (!targetUrl || !targetKey) {
     return null;
@@ -18,7 +21,12 @@ export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClien
   }
 
   try {
-    cachedClient = createClient(targetUrl, targetKey);
+    cachedClient = createClient(targetUrl, targetKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true
+      }
+    });
     currentUrl = targetUrl;
     currentKey = targetKey;
     return cachedClient;
@@ -26,6 +34,102 @@ export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClien
     console.error('Failed to initialize Supabase client:', err);
     return null;
   }
+}
+
+export interface SupabaseAuthResult {
+  success: boolean;
+  user?: any;
+  error?: string;
+  source: 'supabase_auth' | 'supabase_table' | 'local_fallback';
+}
+
+/**
+ * Authenticates admin via Supabase.
+ * - If email (contains @), signs in via supabase.auth.signInWithPassword.
+ * - If username, queries `store_admins` table or validates credentials.
+ * - If Supabase is not yet configured, falls back to local admin verification.
+ */
+export async function authenticateAdminWithSupabase(
+  identifier: string,
+  passwordInput: string,
+  options?: {
+    customUrl?: string;
+    customKey?: string;
+    fallbackUsername?: string;
+    fallbackPassword?: string;
+  }
+): Promise<SupabaseAuthResult> {
+  const client = getSupabaseClient(options?.customUrl, options?.customKey);
+  const trimmedId = identifier.trim();
+  const trimmedPass = passwordInput.trim();
+
+  if (client) {
+    try {
+      if (trimmedId.includes('@')) {
+        const { data, error } = await client.auth.signInWithPassword({
+          email: trimmedId,
+          password: trimmedPass
+        });
+
+        if (error) {
+          return {
+            success: false,
+            error: error.message || 'بيانات الدخول غير صحيحة عبر Supabase',
+            source: 'supabase_auth'
+          };
+        }
+
+        return {
+          success: true,
+          user: data.user,
+          source: 'supabase_auth'
+        };
+      } else {
+        // Look up by username in store_admins
+        const { data, error } = await client
+          .from('store_admins')
+          .select('*')
+          .eq('username', trimmedId)
+          .single();
+
+        if (!error && data) {
+          if (data.password === trimmedPass || data.password_hash === trimmedPass) {
+            return {
+              success: true,
+              user: data,
+              source: 'supabase_table'
+            };
+          } else {
+            return {
+              success: false,
+              error: 'كلمة المرور غير صحيحة لحساب الإدارة في Supabase',
+              source: 'supabase_table'
+            };
+          }
+        }
+      }
+    } catch (err: any) {
+      console.warn('Supabase authentication check warning:', err);
+    }
+  }
+
+  // Local fallback when Supabase is not connected
+  const validUser = (options?.fallbackUsername || 'admin').trim();
+  const validPass = (options?.fallbackPassword || 'laith2026').trim();
+
+  if (trimmedId === validUser && trimmedPass === validPass) {
+    return {
+      success: true,
+      user: { username: validUser, role: 'master_admin' },
+      source: 'local_fallback'
+    };
+  }
+
+  return {
+    success: false,
+    error: 'بيانات تسجيل الدخول غير صحيحة',
+    source: client ? 'supabase_auth' : 'local_fallback'
+  };
 }
 
 export async function testSupabaseConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string }> {

@@ -25,10 +25,13 @@ import {
   Layers,
   Table as TableIcon,
   Languages,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  Tag
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { Product, ProductCondition, ProductVariantCombination, ProductSpecItem } from '../../types';
+import { generateUniqueSlug, checkIsSlugDuplicate, generateUniqueSku, slugifyText } from '../../utils/slugAndSku';
 
 export const ProductsView: React.FC = () => {
   const {
@@ -81,6 +84,7 @@ export const ProductsView: React.FC = () => {
     price_usd: number;
     compare_at_price: number;
     discount_percent: number;
+    is_promotion: boolean;
     category_id: string;
     brand: string;
     images: string[];
@@ -104,6 +108,7 @@ export const ProductsView: React.FC = () => {
     price_usd: 0,
     compare_at_price: 0,
     discount_percent: 0,
+    is_promotion: false,
     category_id: categories[0]?.id || '',
     brand: brands[0] || 'Apple',
     images: [''],
@@ -170,7 +175,11 @@ export const ProductsView: React.FC = () => {
   // Open modal for Create
   const handleOpenCreateModal = () => {
     setEditingProduct(null);
-    const sku = `LTH-${Math.floor(1000 + Math.random() * 9000)}`;
+    const existingSkus = products.map(p => p.sku).filter(Boolean);
+    const initialBrand = brands[0] || 'Apple';
+    const initialCategory = categories[0]?.id || 'smartphone';
+    const sku = generateUniqueSku(initialBrand, initialCategory, existingSkus);
+
     setFormData({
       title_ar: '',
       title_en: '',
@@ -181,8 +190,9 @@ export const ProductsView: React.FC = () => {
       price_usd: 100,
       compare_at_price: 0,
       discount_percent: 0,
+      is_promotion: false,
       category_id: categories[0]?.id || '',
-      brand: brands[0] || 'Apple',
+      brand: initialBrand,
       images: ['https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=600&q=80'],
       condition: 'new',
       condition_details: '',
@@ -227,16 +237,18 @@ export const ProductsView: React.FC = () => {
   // Open modal for Edit
   const handleOpenEditModal = (product: Product) => {
     setEditingProduct(product);
+    const hasPromo = (product.discount_percent || 0) > 0 || ((product.compare_at_price || 0) > product.price);
     setFormData({
       title_ar: product.title_ar,
       title_en: product.title_en,
       slug: product.slug || '',
-      description_ar: product.description_ar,
-      description_en: product.description_en,
+      description_ar: product.description_ar || '',
+      description_en: product.description_en || '',
       price: product.price,
       price_usd: product.price_usd || Math.round(product.price / (storeSettings.usd_exchange_rate || 15000)),
       compare_at_price: product.compare_at_price || 0,
       discount_percent: product.discount_percent || 0,
+      is_promotion: hasPromo,
       category_id: product.category_id,
       brand: product.brand,
       images: product.images && product.images.length > 0 ? [...product.images] : [''],
@@ -257,25 +269,80 @@ export const ProductsView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // Auto-generate Unique SKU on demand
+  const handleAutoGenerateSku = () => {
+    const existingSkus = products
+      .filter(p => !editingProduct || p.id !== editingProduct.id)
+      .map(p => p.sku)
+      .filter(Boolean);
+    const newSku = generateUniqueSku(formData.brand, formData.category_id, existingSkus);
+    setFormData(prev => ({ ...prev, sku: newSku }));
+    showToast(isAr ? `تم توليد رمز SKU فريد: ${newSku}` : `Generated unique SKU: ${newSku}`);
+  };
+
+  // Auto-generate Unique Slug URL on demand
+  const handleAutoGenerateSlug = () => {
+    const title = formData.title_en.trim() || formData.title_ar.trim() || 'product';
+    const existingSlugs = products.map(p => p.slug).filter(Boolean);
+    const { slug, isDuplicateFound } = generateUniqueSlug(
+      title,
+      existingSlugs,
+      editingProduct?.id,
+      products
+    );
+    setFormData(prev => ({ ...prev, slug }));
+    if (isDuplicateFound) {
+      showToast(isAr ? `تم تعديل الرابط لتفادي التكرار: ${slug}` : `URL modified to prevent duplication: ${slug}`);
+    } else {
+      showToast(isAr ? `تم توليد الرابط الفريد: ${slug}` : `Unique URL generated: ${slug}`);
+    }
+  };
+
+  // Toggle promotion checkbox
+  const handleTogglePromotion = (enabled: boolean) => {
+    setFormData((prev) => {
+      if (!enabled) {
+        return {
+          ...prev,
+          is_promotion: false,
+          discount_percent: 0,
+          compare_at_price: 0
+        };
+      } else {
+        const percent = prev.discount_percent > 0 ? prev.discount_percent : 15;
+        const compareAt = prev.price > 0 ? Math.round(prev.price / (1 - percent / 100)) : 0;
+        return {
+          ...prev,
+          is_promotion: true,
+          discount_percent: percent,
+          compare_at_price: compareAt
+        };
+      }
+    });
+  };
+
   // Auto calculate discount percentage & compare_at_price
   const handlePriceChange = (val: number) => {
     setFormData((prev) => {
       let disc = prev.discount_percent;
-      if (prev.compare_at_price > val) {
-        disc = Math.round(((prev.compare_at_price - val) / prev.compare_at_price) * 100);
+      let compareAt = prev.compare_at_price;
+      if (prev.is_promotion && disc > 0 && disc < 100) {
+        compareAt = Math.round(val / (1 - disc / 100));
+      } else if (compareAt > val) {
+        disc = Math.round(((compareAt - val) / compareAt) * 100);
       }
       const usdVal = Math.round(val / (storeSettings.usd_exchange_rate || 15000));
-      return { ...prev, price: val, price_usd: usdVal, discount_percent: disc };
+      return { ...prev, price: val, price_usd: usdVal, discount_percent: disc, compare_at_price: compareAt };
     });
   };
 
   const handleCompareAtPriceChange = (val: number) => {
     setFormData((prev) => {
       let disc = 0;
-      if (val > prev.price) {
+      if (val > prev.price && prev.price > 0) {
         disc = Math.round(((val - prev.price) / val) * 100);
       }
-      return { ...prev, compare_at_price: val, discount_percent: disc };
+      return { ...prev, compare_at_price: val, discount_percent: disc, is_promotion: disc > 0 };
     });
   };
 
@@ -285,7 +352,7 @@ export const ProductsView: React.FC = () => {
       if (percent > 0 && percent < 100 && prev.price > 0) {
         compareAt = Math.round(prev.price / (1 - percent / 100));
       }
-      return { ...prev, discount_percent: percent, compare_at_price: compareAt };
+      return { ...prev, discount_percent: percent, compare_at_price: compareAt, is_promotion: percent > 0 };
     });
   };
 
@@ -375,23 +442,44 @@ export const ProductsView: React.FC = () => {
       validImages.push('https://images.unsplash.com/photo-1592750475338-74b7b21085ab?auto=format&fit=crop&w=600&q=80');
     }
 
+    // Guarantee unique URL slug
+    const titleForSlug = formData.title_en.trim() || formData.title_ar.trim() || 'product';
+    const targetSlug = formData.slug.trim() || slugifyText(titleForSlug);
+    const existingSlugs = products.map(p => p.slug).filter(Boolean);
+    const { slug: guaranteedUniqueSlug } = generateUniqueSlug(
+      targetSlug,
+      existingSlugs,
+      editingProduct?.id,
+      products
+    );
+
+    // Guarantee unique SKU
+    const existingSkus = products
+      .filter(p => !editingProduct || p.id !== editingProduct.id)
+      .map(p => p.sku)
+      .filter(Boolean);
+    const guaranteedSku = formData.sku.trim() || generateUniqueSku(formData.brand, formData.category_id, existingSkus);
+
+    // Check promotion status
+    const isPromoActive = formData.is_promotion && Number(formData.discount_percent) > 0;
+
     const payload = {
       title_ar: formData.title_ar || 'منتج جديد',
       title_en: formData.title_en || formData.title_ar || 'New Product',
-      slug: formData.slug || (formData.title_en || formData.title_ar || 'product').toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
+      slug: guaranteedUniqueSlug,
       description_ar: formData.description_ar,
       description_en: formData.description_en,
       price: Number(formData.price),
       price_usd: Number(formData.price_usd),
-      compare_at_price: Number(formData.compare_at_price) > 0 ? Number(formData.compare_at_price) : undefined,
-      discount_percent: Number(formData.discount_percent) > 0 ? Number(formData.discount_percent) : undefined,
+      compare_at_price: isPromoActive && Number(formData.compare_at_price) > 0 ? Number(formData.compare_at_price) : undefined,
+      discount_percent: isPromoActive ? Number(formData.discount_percent) : undefined,
       category_id: formData.category_id,
       brand: formData.brand,
       images: validImages,
       condition: formData.condition,
       condition_details: formData.condition_details,
       stock_quantity: Number(formData.stock_quantity),
-      sku: formData.sku || `LTH-${Math.floor(1000 + Math.random() * 9000)}`,
+      sku: guaranteedSku,
       is_featured: formData.is_featured,
       is_new: formData.is_new,
       warranty_ar: formData.warranty_ar,
@@ -904,14 +992,24 @@ export const ProductsView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Unique Dedicated URL Generator */}
+                {/* Unique Dedicated URL Generator with Duplicate Detection */}
                 <div className="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-xl space-y-2">
-                  <label className="block text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                    <Link className="w-3.5 h-3.5 text-amber-600" />
-                    <span>{isAr ? 'الرابط المخصص والفريد للمنتج (Unique URL / Slug):' : 'Product Unique URL Slug:'}</span>
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <Link className="w-3.5 h-3.5 text-amber-600" />
+                      <span>{isAr ? 'الرابط المخصص والفريد للمنتج (Unique URL / Slug):' : 'Product Unique URL Slug:'}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAutoGenerateSlug}
+                      className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <Sparkles className="w-3 h-3 text-amber-700" />
+                      <span>{isAr ? 'توليد تلقائي للرابط' : 'Auto Generate URL'}</span>
+                    </button>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-mono text-stone-500 shrink-0">
+                    <span className="text-[11px] font-mono text-stone-500 shrink-0 select-none">
                       https://allaith.vercel.app/#product/
                     </span>
                     <input
@@ -922,63 +1020,183 @@ export const ProductsView: React.FC = () => {
                       className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-mono text-xs text-stone-900 outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
+                  {/* Duplicate or Unique URL Status Badge */}
+                  {formData.slug.trim() && (
+                    <div className="pt-1">
+                      {checkIsSlugDuplicate(formData.slug, products, editingProduct?.id) ? (
+                        <div className="flex items-center gap-1.5 text-rose-600 text-[11px] font-bold bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{isAr ? 'تنبيه: هذا الرابط مكرر ومستخدم لمنتج آخر! انقر على "توليد تلقائي" لتفادي التعارض.' : 'Warning: This URL slug is already used by another product!'}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-emerald-700 text-[11px] font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                          <span>{isAr ? 'رابط مخصص متاح وفريد 100%' : 'Unique and available URL slug'}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Pricing, Dual Currency, and Discount Auto-calculation */}
-              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-4">
-                <h4 className="text-xs font-black text-stone-900 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <span>{isAr ? 'التسعير بالليرة السورية والدولار مع احتساب الخصم' : 'Pricing & Discount'}</span>
-                </h4>
+              {/* Product Descriptions Section (Requested Feature) */}
+              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black text-stone-900 flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-600" />
+                    <span>{isAr ? 'شرح ووصف المنتج التفصيلي (Description Box)' : 'Product Detailed Description'}</span>
+                  </h4>
+                  <span className="text-[11px] text-stone-500">
+                    {isAr ? 'يظهر للزبائن في صفحة تفاصيل المنتج' : 'Displayed to customers on product page'}
+                  </span>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      {isAr ? 'السعر الفعلي (ل.س) *' : 'Actual Price (SYP) *'}
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      {isAr ? 'الوصف بالعربية *' : 'Description (Arabic) *'}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={formData.description_ar}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, description_ar: e.target.value }))}
+                      placeholder={isAr ? 'أدخل شرحاً مفصلاً عن المنتج، حالته، ملحقاته ومميزاته التقنية لزبائن المتجر...' : 'Enter Arabic product description and features...'}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs text-stone-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y font-medium"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      {isAr ? 'الوصف بالإنجليزية (اختياري)' : 'Description (English - Optional)'}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={formData.description_en}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, description_en: e.target.value }))}
+                      placeholder="Enter detailed English description, specifications overview, and highlights..."
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs text-stone-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Promotion, Discounts, and Pricing (Requested Checkbox Feature) */}
+              <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-4">
+                {/* Promotion Checkbox Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-2xs">
+                      <Tag className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-stone-900">
+                        {isAr ? 'العروض الترويجية والخصومات الخاصة' : 'Promotions & Special Discounts'}
+                      </h4>
+                      <p className="text-[11px] text-stone-500">
+                        {isAr ? 'تحديد نسبة الخصم المئوية وإظهار السعر قبل وبعد التخفيض' : 'Set percentage discount and compare-at pricing'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Requested Checkbox */}
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-stone-300 hover:border-rose-400 cursor-pointer transition-colors shadow-2xs select-none">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_promotion}
+                      onChange={(e) => handleTogglePromotion(e.target.checked)}
+                      className="w-4 h-4 text-rose-600 rounded-sm focus:ring-rose-500 cursor-pointer accent-rose-600"
+                    />
+                    <span className="text-xs font-black text-stone-800">
+                      {isAr ? 'تفعيل عرض خاص / تخفيض ترويجي' : 'Enable Promotion / Sale'}
+                    </span>
+                  </label>
+                </div>
+
+                {/* Promotion Percentage Fields when enabled */}
+                {formData.is_promotion && (
+                  <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-rose-800 text-xs font-bold">
+                      <Percent className="w-4 h-4 text-rose-600" />
+                      <span>{isAr ? 'بيانات الخصم المئوي واحتساب السعر الترويجي:' : 'Discount Percentage & Calculated Offer:'}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-bold text-rose-950 mb-1">
+                          {isAr ? 'نسبة الخصم المئوية (%) *' : 'Discount Percentage (%) *'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            value={formData.discount_percent || ''}
+                            onChange={(e) => handleDiscountPercentChange(Number(e.target.value))}
+                            placeholder="15"
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-rose-300 font-mono font-black text-xs text-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                          />
+                          <span className="absolute end-3 top-2 text-xs font-black text-rose-400 select-none">%</span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                          {isAr ? 'السعر الأصلي قبل الخصم (ل.س)' : 'Compare At Price (SYP)'}
+                        </label>
+                        <input
+                          type="number"
+                          value={formData.compare_at_price || ''}
+                          onChange={(e) => handleCompareAtPriceChange(Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-bold text-xs text-stone-500 line-through focus:outline-none focus:ring-2 focus:ring-rose-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                          {isAr ? 'مقدار التوفير للزبون' : 'Customer Savings'}
+                        </label>
+                        <div className="px-3 py-2 rounded-xl bg-white border border-rose-200 text-xs font-bold text-emerald-700 flex items-center justify-between">
+                          <span>
+                            {formData.compare_at_price > formData.price
+                              ? formatPrice(formData.compare_at_price - formData.price)
+                              : '—'}
+                          </span>
+                          <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-md font-black">
+                            {isAr ? `خصم ${formData.discount_percent || 0}%` : `${formData.discount_percent || 0}% OFF`}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actual Selling Price & Dual Currency */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      {formData.is_promotion
+                        ? (isAr ? 'سعر البيع الفعلي بعد الخصم (ل.س) *' : 'Actual Selling Price After Discount (SYP) *')
+                        : (isAr ? 'سعر البيع الفعلي (ل.س) *' : 'Actual Selling Price (SYP) *')}
                     </label>
                     <input
                       type="number"
                       value={formData.price}
                       onChange={(e) => handlePriceChange(Number(e.target.value))}
                       required
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-bold text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      {isAr ? 'السعر المعادل ($)' : 'Price in USD ($)'}
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      {isAr ? 'السعر المعادل بالدولار ($)' : 'Price in USD ($)'}
                     </label>
                     <input
                       type="number"
                       value={formData.price_usd}
                       onChange={(e) => setFormData((prev) => ({ ...prev, price_usd: Number(e.target.value) }))}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-bold text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      {isAr ? 'السعر قبل الخصم (ل.س)' : 'Compare At Price (SYP)'}
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.compare_at_price}
-                      onChange={(e) => handleCompareAtPriceChange(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-bold text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      {isAr ? 'نسبة الخصم المئوية (%)' : 'Discount (%)'}
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.discount_percent}
-                      onChange={(e) => handleDiscountPercentChange(Number(e.target.value))}
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-bold text-xs text-rose-600 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
                 </div>
@@ -1237,54 +1455,88 @@ export const ProductsView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Category, Brand, Condition, SKU */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الفئة *' : 'Category *'}</label>
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold"
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>{isAr ? c.name_ar : c.name_en}</option>
-                    ))}
-                  </select>
+              {/* Category, Brand, Condition, Stock, and Auto-Generated SKU */}
+              <div className="space-y-4 p-4 bg-stone-50 rounded-2xl border border-stone-200">
+                <h4 className="text-xs font-black text-stone-900 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  <span>{isAr ? 'بيانات التصنيف، المخزون، ورمز التتبع (SKU)' : 'Category, Stock & SKU'}</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الفئة *' : 'Category *'}</label>
+                    <select
+                      value={formData.category_id}
+                      onChange={(e) => setFormData(prev => ({ ...prev, category_id: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-semibold"
+                    >
+                      {categories.map(c => (
+                        <option key={c.id} value={c.id}>{isAr ? c.name_ar : c.name_en}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الماركة *' : 'Brand *'}</label>
+                    <select
+                      value={formData.brand}
+                      onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-semibold"
+                    >
+                      {brands.map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الحالة' : 'Condition'}</label>
+                    <select
+                      value={formData.condition}
+                      onChange={(e) => setFormData(prev => ({ ...prev, condition: e.target.value as ProductCondition }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 text-xs font-semibold"
+                    >
+                      <option value="new">{isAr ? 'جديد (مختوم)' : 'New'}</option>
+                      <option value="used">{isAr ? 'مستعمل (مفحوص نظيف)' : 'Used / Like New'}</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الكمية في المخزن' : 'Stock Quantity'}</label>
+                    <input
+                      type="number"
+                      value={formData.stock_quantity}
+                      onChange={(e) => setFormData(prev => ({ ...prev, stock_quantity: Number(e.target.value) }))}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 font-mono text-xs font-semibold"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الماركة *' : 'Brand *'}</label>
-                  <select
-                    value={formData.brand}
-                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold"
-                  >
-                    {brands.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الحالة' : 'Condition'}</label>
-                  <select
-                    value={formData.condition}
-                    onChange={(e) => setFormData(prev => ({ ...prev, condition: e.target.value as ProductCondition }))}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs font-semibold"
-                  >
-                    <option value="new">{isAr ? 'جديد (مختوم)' : 'New'}</option>
-                    <option value="used">{isAr ? 'مستعمل (مفحوص نظيف)' : 'Used / Like New'}</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الكمية في المخزن' : 'Stock Quantity'}</label>
-                  <input
-                    type="number"
-                    value={formData.stock_quantity}
-                    onChange={(e) => setFormData(prev => ({ ...prev, stock_quantity: Number(e.target.value) }))}
-                    className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 font-mono text-xs font-semibold"
-                  />
+                {/* SKU Auto-Generation Input (Requested Feature) */}
+                <div className="pt-2 border-t border-stone-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-bold text-stone-800 mb-1 flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{isAr ? 'رمز تعريف المنتج الفريد (SKU):' : 'Unique Product SKU:'}</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={formData.sku}
+                        onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value.toUpperCase() }))}
+                        placeholder="e.g. LTH-APL-SMART-4821"
+                        className="flex-1 px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAutoGenerateSku}
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors shrink-0"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>{isAr ? 'توليد SKU تلقائي' : 'Auto Generate SKU'}</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 

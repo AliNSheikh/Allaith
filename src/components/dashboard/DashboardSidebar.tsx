@@ -28,7 +28,6 @@ export type DashboardTab =
   | 'content'
   | 'reports'
   | 'google_seo'
-  | 'supabase'
   | 'settings';
 
 interface DashboardSidebarProps {
@@ -119,13 +118,6 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       requiredPermission: 'canManageSettings'
     },
     {
-      id: 'supabase',
-      label_ar: 'قاعدة بيانات Supabase',
-      label_en: 'Supabase Cloud DB',
-      icon: Database,
-      requiredPermission: 'canManageSettings'
-    },
-    {
       id: 'settings',
       label_ar: 'إعدادات المتجر',
       label_en: 'Store Settings',
@@ -144,9 +136,9 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         />
       )}
 
-      {/* Sidebar Container - Shopify Polaris Dark Theme */}
+      {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 z-50 w-72 bg-[#121619] text-stone-300 border-r rtl:border-r-0 rtl:border-l border-stone-800 flex flex-col transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 z-50 w-72 lg:static lg:z-auto lg:h-screen lg:shrink-0 bg-[#121619] text-stone-300 border-r rtl:border-r-0 rtl:border-l border-stone-800 flex flex-col transition-transform duration-300 ease-in-out ${
           isAr ? 'right-0' : 'left-0'
         } ${
           isOpenMobile

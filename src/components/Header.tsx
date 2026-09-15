@@ -330,18 +330,6 @@ export const Header: React.FC = () => {
               </button>
             </div>
 
-            {/* Dashboard Quick Access Button */}
-            <button
-              id="header-admin-dashboard-btn"
-              type="button"
-              onClick={() => setCurrentView('admin')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
-              title={locale === 'ar' ? 'لوحة تحكم المتجر (Dashboard)' : 'Store Dashboard'}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="hidden md:inline">{locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
-            </button>
-
             {/* Language Switcher */}
             <button
               id="header-language-toggle-btn"
@@ -503,23 +491,6 @@ export const Header: React.FC = () => {
               <Smartphone className="w-4 h-4 text-emerald-600" />
               <span>{locale === 'ar' ? 'طلب جهاز جديد بالاسم' : 'Request New Device'}</span>
             </div>
-          </button>
-
-          {/* Dashboard Button (Mobile) */}
-          <button
-            id="mobile-nav-dashboard"
-            type="button"
-            onClick={() => {
-              setIsMobileMenuOpen(false);
-              setCurrentView('admin');
-            }}
-            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold bg-stone-900 text-white shadow-xs"
-          >
-            <div className="flex items-center gap-2">
-              <LayoutDashboard className="w-4 h-4 text-emerald-400" />
-              <span>{locale === 'ar' ? 'لوحة تحكم المتجر (Dashboard)' : 'Store Dashboard'}</span>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-800 text-emerald-400">Admin</span>
           </button>
 
           {/* Site Details Button */}

@@ -9,7 +9,6 @@ import { CategoriesBrandsView } from './CategoriesBrandsView';
 import { HomepageContentView } from './HomepageContentView';
 import { ReportsView } from './ReportsView';
 import { GoogleSeoView } from './GoogleSeoView';
-import { IntegrationsView } from './IntegrationsView';
 import { MaintenanceRequestsView } from './MaintenanceRequestsView';
 import { DashboardLogin } from './DashboardLogin';
 import { ShieldAlert } from 'lucide-react';
@@ -46,7 +45,7 @@ export const ShopifyDashboard: React.FC = () => {
         />
 
         {/* Dynamic Tab Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 w-full max-w-[1600px] mx-auto">
           {activeTab === 'analytics' && <AnalyticsView />}
           {activeTab === 'orders' && <OrdersView />}
           {activeTab === 'products' && <ProductsView />}
@@ -54,7 +53,6 @@ export const ShopifyDashboard: React.FC = () => {
           {activeTab === 'content' && <HomepageContentView />}
           {activeTab === 'reports' && <ReportsView />}
           {activeTab === 'google_seo' && <GoogleSeoView />}
-          {activeTab === 'supabase' && <IntegrationsView />}
           {activeTab === 'settings' && <HomepageContentView />}
         </main>
       </div>
