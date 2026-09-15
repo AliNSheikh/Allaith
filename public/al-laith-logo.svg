@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 520" fill="none">
+  <defs>
+    <!-- Graphite / Slate Gradient for Left Emblem -->
+    <linearGradient id="slateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2B343D" />
+      <stop offset="45%" stop-color="#1B2228" />
+      <stop offset="100%" stop-color="#12171B" />
+    </linearGradient>
+
+    <!-- Sage / Celadon Green Gradient for Right Emblem -->
+    <linearGradient id="sageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#729A84" />
+      <stop offset="60%" stop-color="#58816C" />
+      <stop offset="100%" stop-color="#466856" />
+    </linearGradient>
+
+    <!-- Subtle Metallic Highlight for Beveled Inner Cuts -->
+    <linearGradient id="metallicSheen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CCD7D0" stop-opacity="0.9" />
+      <stop offset="50%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#A1B2A8" stop-opacity="0.8" />
+    </linearGradient>
+
+    <!-- Drop Shadow for Dimensionality -->
+    <filter id="emblemShadow" x="-10%" y="-10%" width="120%" height="130%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#12181F" flood-opacity="0.18" />
+    </filter>
+  </defs>
+
+  <!-- Circular Emblem Group -->
+  <g id="Emblem" transform="translate(300, 160)" filter="url(#emblemShadow)">
+    <!-- Base Circle Clip -->
+    <clipPath id="circleClip">
+      <circle cx="0" cy="0" r="140" />
+    </clipPath>
+
+    <g clip-path="url(#circleClip)">
+      <!-- Right Half: Sage Green Textured Area -->
+      <rect x="-140" y="-140" width="280" height="280" fill="url(#sageGrad)" />
+
+      <!-- Left / Center Silhouette: Stylized Phone & Monogram in Metallic Graphite -->
+      <!-- Phone Base Body with Rounded Corner Left -->
+      <path d="M-140 -140 L-140 140 L20 140 L20 -140 Z" fill="url(#slateGrad)" />
+
+      <!-- Stylized Right Chamfer of Phone Body -->
+      <path d="M-50 -130 L18 -130 C24 -130, 28 -126, 28 -120 L28 120 C28 126, 24 130, 18 130 L-50 130 Z" fill="url(#slateGrad)" />
+
+      <!-- Diagonal Stylized Cutout on Right (revealing Sage Green) -->
+      <path d="M28 -140 L140 -140 L140 140 L28 140 Z" fill="url(#sageGrad)" />
+
+      <!-- Stylized Monogram Grooves / Cuts representing 'L' and phone screen edge -->
+      <!-- Top Angled Bevel Cut -->
+      <path d="M-15 -140 L10 -105 L-5 -30 L-35 -70 Z" fill="#14191D" opacity="0.6" />
+      <path d="M-12 -138 L8 -105 L-4 -32" stroke="url(#metallicSheen)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+
+      <!-- Central Diagonal Split Curve -->
+      <path d="M-5 -25 L22 35 C28 50, 20 75, -5 95 L-20 105 L-25 140 L-10 140 C35 110, 48 65, 30 25 L5 -30 Z" fill="url(#metallicSheen)" opacity="0.95" />
+
+      <!-- Inner Phone Screen Accent -->
+      <rect x="-95" y="-105" width="65" height="210" rx="14" fill="#161C21" stroke="#2D3842" stroke-width="2.5" />
+      <path d="M-80 -80 L-45 -80" stroke="#3E4E5C" stroke-width="2" stroke-linecap="round" />
+      <circle cx="-62" cy="85" r="5" fill="#2D3842" />
+
+      <!-- Intersecting Wing Detail in Sage Sector -->
+      <path d="M30 -50 L75 -50 C80 -50, 84 -46, 84 -40 L84 70 C84 76, 80 80, 75 80 L30 80" stroke="#405E4E" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.7" />
+    </g>
+
+    <!-- Outer Fine Edge Ring -->
+    <circle cx="0" cy="0" r="140" fill="none" stroke="#252D34" stroke-width="2" opacity="0.4" />
+    <circle cx="0" cy="0" r="139" fill="none" stroke="url(#metallicSheen)" stroke-width="1.5" opacity="0.5" />
+  </g>
+
+  <!-- Typography: Arabic Calligraphy (الليث للاتصالات) -->
+  <g id="ArabicTypography" transform="translate(300, 395)" text-anchor="middle">
+    <text x="0" y="0" font-family="'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Fustat', 'Cairo', serif" font-weight="900" font-size="56" fill="#181E23" letter-spacing="1">
+      اللَّيْثُ لِلِاتِّصَالَاتْ
+    </text>
+  </g>
+
+  <!-- Typography: English Brand Subtitle (AL-LAITH TELECOM) -->
+  <g id="EnglishTypography" transform="translate(300, 455)" text-anchor="middle">
+    <text x="0" y="0" font-family="'Plus Jakarta Sans', 'Montserrat', 'Inter', system-ui, sans-serif" font-weight="900" font-size="28" fill="#181E23" letter-spacing="9">
+      AL-LAITH TELECOM
+    </text>
+  </g>
+</svg>

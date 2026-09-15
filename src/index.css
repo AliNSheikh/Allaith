@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+:root {
+  --font-ar: 'Fustat', system-ui, -apple-system, sans-serif;
+  --font-en: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --color-laith-slate: #181e23;
+  --color-laith-slate-light: #28323b;
+  --color-laith-sage: #547b66;
+  --color-laith-sage-light: #6b947e;
+  --color-laith-sage-tint: #ebf2ed;
+}
+
+/* Seamless Continuous Marquee for Homepage Feature Ticker */
+@keyframes ticker-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes ticker-marquee-rtl {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+.animate-ticker-line {
+  display: inline-flex;
+  width: max-content;
+  animation: ticker-marquee 38s linear infinite;
+  will-change: transform;
+}
+
+html[dir="rtl"] .animate-ticker-line {
+  animation: ticker-marquee-rtl 38s linear infinite;
+}
+
+.animate-ticker-line:hover,
+.animate-ticker-line:active {
+  animation-play-state: paused;
+}
+
+html[dir="rtl"],
+html[dir="rtl"] body,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] select,
+html[dir="rtl"] textarea,
+html[dir="rtl"] h1,
+html[dir="rtl"] h2,
+html[dir="rtl"] h3,
+html[dir="rtl"] h4,
+html[dir="rtl"] h5,
+html[dir="rtl"] h6,
+html[dir="rtl"] p,
+html[dir="rtl"] span,
+html[dir="rtl"] a {
+  font-family: 'Fustat', var(--font-ar), system-ui, -apple-system, sans-serif !important;
+}
+
+html[dir="ltr"],
+html[dir="ltr"] body,
+html[dir="ltr"] button,
+html[dir="ltr"] input,
+html[dir="ltr"] select,
+html[dir="ltr"] textarea {
+  font-family: 'Plus Jakarta Sans', var(--font-en), system-ui, -apple-system, sans-serif;
+}
+
+body {
+  overflow-x: hidden;
+  font-family: 'Fustat', var(--font-ar), system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}

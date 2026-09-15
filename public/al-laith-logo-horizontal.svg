@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 380 90" fill="none">
+  <defs>
+    <linearGradient id="hSlateGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2B343D" />
+      <stop offset="50%" stop-color="#1B2228" />
+      <stop offset="100%" stop-color="#12171B" />
+    </linearGradient>
+    <linearGradient id="hSageGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#729A84" />
+      <stop offset="60%" stop-color="#58816C" />
+      <stop offset="100%" stop-color="#466856" />
+    </linearGradient>
+    <linearGradient id="hSheen" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#CCD7D0" />
+      <stop offset="50%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#A1B2A8" />
+    </linearGradient>
+    <clipPath id="hCircleClip">
+      <circle cx="45" cy="45" r="40" />
+    </clipPath>
+  </defs>
+
+  <!-- Circular Emblem -->
+  <g transform="translate(0, 0)">
+    <g clip-path="url(#hCircleClip)">
+      <rect x="5" y="5" width="80" height="80" fill="url(#hSageGrad)" />
+      <path d="M5 5 L5 85 L52 85 L52 5 Z" fill="url(#hSlateGrad)" />
+      <!-- Bevel divider and phone contour -->
+      <rect x="18" y="16" width="20" height="58" rx="4" fill="#161C21" stroke="#2D3842" stroke-width="1.2" />
+      <path d="M42 5 L48 25 L40 50 L52 75 L45 85" stroke="url(#hSheen)" stroke-width="2" stroke-linecap="round" fill="none" />
+      <circle cx="28" cy="68" r="1.5" fill="#58816C" />
+    </g>
+    <circle cx="45" cy="45" r="40" stroke="#1B2228" stroke-width="1.5" fill="none" opacity="0.4" />
+    <circle cx="45" cy="45" r="39.5" stroke="url(#hSheen)" stroke-width="1" fill="none" opacity="0.6" />
+  </g>
+
+  <!-- Text Group -->
+  <g transform="translate(102, 0)">
+    <!-- Arabic Calligraphy / Heading -->
+    <text x="0" y="44" font-family="'Amiri', 'Traditional Arabic', 'Scheherazade New', 'Fustat', 'Cairo', serif" font-weight="900" font-size="29" fill="#181E23" letter-spacing="0.5">
+      اللَّيْثُ لِلِاتِّصَالَاتْ
+    </text>
+    <!-- English Subtitle -->
+    <text x="2" y="68" font-family="'Plus Jakarta Sans', 'Montserrat', system-ui, sans-serif" font-weight="800" font-size="11.5" fill="#4B5864" letter-spacing="3.2">
+      AL-LAITH TELECOM
+    </text>
+  </g>
+</svg>

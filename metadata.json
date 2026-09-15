@@ -1,0 +1,6 @@
+{
+  "name": "Al-Laith for Telecommunications",
+  "description": "متجر الليث للاتصالات في سوريا - منصة تجارة إلكترونية متطورة للهواتف الذكية والإلكترونيات وصيانة الأجهزة مع عرض فوري لسعر صرف الدولار لحظياً بالليرة السورية الجديدة والقديمة مباشرة من sp-today.com والطلب عبر وتساب.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
