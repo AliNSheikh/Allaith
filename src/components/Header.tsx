@@ -12,7 +12,8 @@ import {
   Coins,
   Smartphone,
   MapPin,
-  ChevronDown
+  ChevronDown,
+  LayoutDashboard
 } from 'lucide-react';
 import { defaultStoreLogoSvg } from '../data/logoPresets';
 import { LaithLogo } from './LaithLogo';
@@ -43,6 +44,8 @@ export const Header: React.FC = () => {
     exchangeRateData,
     setIsExchangeModalOpen
   } = useStore();
+
+  const isAr = locale === 'ar';
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -150,10 +153,10 @@ export const Header: React.FC = () => {
               className="flex items-center group focus:outline-none"
               title={t('home')}
             >
-              {storeSettings.logo_url && !storeSettings.logo_url.includes('TELECOM') ? (
+              {storeSettings.custom_logo_url || (storeSettings.logo_url && !storeSettings.logo_url.includes('TELECOM')) ? (
                 <img
-                  src={storeSettings.logo_url}
-                  alt="Al-Laith Telecom"
+                  src={storeSettings.custom_logo_url || storeSettings.logo_url}
+                  alt={isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
                   className="h-9 sm:h-11 w-auto max-w-[170px] sm:max-w-[210px] object-contain transition-transform group-hover:scale-[1.02]"
                 />
               ) : (
@@ -327,21 +330,17 @@ export const Header: React.FC = () => {
               </button>
             </div>
 
-            {/* Quick Live Dollar Rate Pill */}
-            {exchangeRateData && (
-              <button
-                id="header-live-rate-badge-btn"
-                type="button"
-                onClick={() => setIsExchangeModalOpen(true)}
-                className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all shadow-2xs group cursor-pointer"
-                title={locale === 'ar' ? 'سعر صرف الدولار المباشر من sp-today.com - انقر للتفاصيل والمحول' : 'Live USD rate from sp-today.com - click for details & calc'}
-              >
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-mono text-emerald-950 font-bold">
-                  1$ = {exchangeRateData.new_lira.sell} جديدة ({exchangeRateData.old_lira.sell.toLocaleString()} قديمة)
-                </span>
-              </button>
-            )}
+            {/* Dashboard Quick Access Button */}
+            <button
+              id="header-admin-dashboard-btn"
+              type="button"
+              onClick={() => setCurrentView('admin')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer"
+              title={locale === 'ar' ? 'لوحة تحكم المتجر (Dashboard)' : 'Store Dashboard'}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden md:inline">{locale === 'ar' ? 'لوحة التحكم' : 'Dashboard'}</span>
+            </button>
 
             {/* Language Switcher */}
             <button
@@ -504,6 +503,23 @@ export const Header: React.FC = () => {
               <Smartphone className="w-4 h-4 text-emerald-600" />
               <span>{locale === 'ar' ? 'طلب جهاز جديد بالاسم' : 'Request New Device'}</span>
             </div>
+          </button>
+
+          {/* Dashboard Button (Mobile) */}
+          <button
+            id="mobile-nav-dashboard"
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(false);
+              setCurrentView('admin');
+            }}
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold bg-stone-900 text-white shadow-xs"
+          >
+            <div className="flex items-center gap-2">
+              <LayoutDashboard className="w-4 h-4 text-emerald-400" />
+              <span>{locale === 'ar' ? 'لوحة تحكم المتجر (Dashboard)' : 'Store Dashboard'}</span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-stone-800 text-emerald-400">Admin</span>
           </button>
 
           {/* Site Details Button */}

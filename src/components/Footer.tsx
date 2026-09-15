@@ -10,7 +10,8 @@ import {
   Clock,
   Lock,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  LayoutDashboard
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
@@ -72,12 +73,22 @@ export const Footer: React.FC = () => {
           {/* Brand Column */}
           <div className="lg:col-span-2 space-y-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-white text-stone-900 flex items-center justify-center font-black text-lg">
-                ل
-              </div>
-              <span className="text-xl font-black text-white tracking-tight">
-                {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
-              </span>
+              {storeSettings.footer_logo_url || storeSettings.custom_logo_url ? (
+                <img
+                  src={storeSettings.footer_logo_url || storeSettings.custom_logo_url}
+                  alt={isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
+                  className="h-10 w-auto max-w-[180px] object-contain"
+                />
+              ) : (
+                <>
+                  <div className="w-9 h-9 rounded-xl bg-white text-stone-900 flex items-center justify-center font-black text-lg">
+                    ل
+                  </div>
+                  <span className="text-xl font-black text-white tracking-tight">
+                    {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
+                  </span>
+                </>
+              )}
             </div>
 
             <p className="text-xs text-stone-400 leading-relaxed max-w-sm">
@@ -148,6 +159,16 @@ export const Footer: React.FC = () => {
                   {isAr ? 'الأجهزة والملحقات' : 'Devices & Accessories'}
                 </button>
               </li>
+              <li className="pt-2 border-t border-stone-800">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('admin')}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 text-emerald-400 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{isAr ? 'لوحة تحكم الإدارة (Dashboard)' : 'Store Admin Dashboard'}</span>
+                </button>
+              </li>
             </ul>
           </div>
 
@@ -197,11 +218,22 @@ export const Footer: React.FC = () => {
         <div className="pt-8 border-t border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-stone-500">
           <p>© {new Date().getFullYear()} {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}. All rights reserved.</p>
 
-          <div className="flex items-center gap-2">
-            <Lock className="w-3.5 h-3.5 text-stone-400" />
-            <span className="text-[11px]">
-              {isAr ? 'متجر الليث للاتصالات - اللاذقية، سوريا • دفع آمن عند الاستلام' : 'Al-Laith Telecom - Latakia, Syria • Cash on Delivery'}
-            </span>
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setCurrentView('admin')}
+              className="text-stone-400 hover:text-emerald-400 transition-colors flex items-center gap-1.5 cursor-pointer font-medium"
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>{isAr ? 'دخول لوحة التحكم' : 'Staff Dashboard'}</span>
+            </button>
+
+            <div className="flex items-center gap-2">
+              <Lock className="w-3.5 h-3.5 text-stone-400" />
+              <span className="text-[11px]">
+                {isAr ? 'متجر الليث للاتصالات - اللاذقية، سوريا • دفع آمن عند الاستلام' : 'Al-Laith Telecom - Latakia, Syria • Cash on Delivery'}
+              </span>
+            </div>
           </div>
         </div>
       </div>

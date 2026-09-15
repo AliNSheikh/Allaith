@@ -74,6 +74,21 @@ export const ProductDetailPage: React.FC = () => {
   const description = isAr ? product.description_ar : product.description_en;
   const inWishlist = isInWishlist(product.id);
 
+  // Match active variant combination if defined
+  const matchedCombination = product.variant_combinations?.find((combo) => {
+    const selectedVals = Object.values(selectedVariants);
+    const attrVals = Object.values(combo.attributes || {});
+    const matchAttributes = attrVals.length > 0 && attrVals.every((v) => selectedVals.includes(v));
+    const matchName = selectedVals.some((v) => 
+      ((combo as any).combination_name_ar && selectedVals.some(sv => (combo as any).combination_name_ar.includes(sv))) ||
+      ((combo as any).combination_name_en && selectedVals.some(sv => (combo as any).combination_name_en.includes(sv)))
+    );
+    return matchAttributes || matchName;
+  });
+
+  const effectivePrice = (matchedCombination as any)?.price || product.price;
+  const effectiveStock = (matchedCombination as any)?.stock_quantity ?? product.stock_quantity;
+
   // Related products from same category
   const relatedProducts = products
     .filter((p) => p.id !== product.id && p.category_id === product.category_id)
@@ -87,8 +102,9 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   const handleAddToCart = () => {
-    if (product.stock_quantity <= 0) return;
-    addToCart(product, quantity, selectedVariants);
+    if (effectiveStock <= 0) return;
+    const productToAdd = matchedCombination ? { ...product, price: effectivePrice } : product;
+    addToCart(productToAdd, quantity, selectedVariants);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 2000);
   };

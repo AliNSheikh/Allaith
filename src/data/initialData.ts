@@ -1,4 +1,4 @@
-import { Product, Category, HeroSlide, PromotionalOffer, StoreSettings, MaintenanceRequest, Order, PhoneRequest } from '../types';
+import { Product, Category, HeroSlide, PromotionalOffer, StoreSettings, MaintenanceRequest, Order, PhoneRequest, StaffUser, VisitorStatDay } from '../types';
 import { defaultStoreLogoSvg } from './logoPresets';
 
 export const initialBrands: string[] = [
@@ -770,7 +770,15 @@ export const initialStoreSettings: StoreSettings = {
   announcement_enabled: true,
   google_sheets_webhook_url: 'https://script.google.com/macros/s/AKfycbx_DEMO_ALLAITH_SHEETS_WEBHOOK/exec',
   google_sheet_id: '1aBcDeFgHiJkLmNoPqRsTuVwXyZ_ALLAITH_ORDERS',
-  google_sheets_sync_enabled: true
+  google_sheets_sync_enabled: true,
+  site_domain: 'https://allaith.vercel.app',
+  google_analytics_id: 'G-L8THSYRIA26',
+  google_search_console_tag: 'google-site-verification=allaith_telecom_syria_verified',
+  google_ads_id: 'AW-987654321',
+  google_adsense_client: 'ca-pub-9988776655443322',
+  supabase_url: 'https://xyzallaith.supabase.co',
+  supabase_anon_key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.dummy_anon_key_for_preview',
+  supabase_enabled: false
 };
 
 export const initialOrders: Order[] = [
@@ -885,5 +893,90 @@ export const initialPhoneRequests: PhoneRequest[] = [
     status: 'new',
     created_at: new Date(Date.now() - 6 * 3600 * 1000).toISOString()
   }
+];
+
+export const initialStaffUsers: StaffUser[] = [
+  {
+    id: 'staff-1',
+    name: 'علي الشيخ (المالك والمدير العام)',
+    email: 'alinsheikh1998@gmail.com',
+    role: 'super_admin',
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80',
+    active: true,
+    permissions: {
+      canManageProducts: true,
+      canManageOrders: true,
+      canManageSettings: true,
+      canViewAnalytics: true,
+      canManageContent: true,
+      canManageUsers: true
+    },
+    created_at: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'staff-2',
+    name: 'سامر قاسم (مدير المبيعات والشحن)',
+    email: 'sales@allaith-telecom.sy',
+    role: 'store_manager',
+    active: true,
+    permissions: {
+      canManageProducts: true,
+      canManageOrders: true,
+      canManageSettings: false,
+      canViewAnalytics: true,
+      canManageContent: false,
+      canManageUsers: false
+    },
+    created_at: '2026-02-10T00:00:00.000Z'
+  },
+  {
+    id: 'staff-3',
+    name: 'نور الهدى (خدمة الزبائن والطلبيات)',
+    email: 'orders@allaith-telecom.sy',
+    role: 'order_support',
+    active: true,
+    permissions: {
+      canManageProducts: false,
+      canManageOrders: true,
+      canManageSettings: false,
+      canViewAnalytics: false,
+      canManageContent: false,
+      canManageUsers: false
+    },
+    created_at: '2026-03-01T00:00:00.000Z'
+  },
+  {
+    id: 'staff-4',
+    name: 'محرر البانرات والعروض',
+    email: 'content@allaith-telecom.sy',
+    role: 'content_editor',
+    active: true,
+    permissions: {
+      canManageProducts: false,
+      canManageOrders: false,
+      canManageSettings: false,
+      canViewAnalytics: false,
+      canManageContent: true,
+      canManageUsers: false
+    },
+    created_at: '2026-03-15T00:00:00.000Z'
+  }
+];
+
+export const initialVisitorStats: VisitorStatDay[] = [
+  { date: '2026-09-02', label: '2 أيلول', visitors: 420, pageViews: 1680, orders: 8, revenue_syp: 48500000, revenue_usd: 3230 },
+  { date: '2026-09-03', label: '3 أيلول', visitors: 480, pageViews: 1920, orders: 11, revenue_syp: 62000000, revenue_usd: 4130 },
+  { date: '2026-09-04', label: '4 أيلول', visitors: 510, pageViews: 2040, orders: 13, revenue_syp: 79000000, revenue_usd: 5260 },
+  { date: '2026-09-05', label: '5 أيلول', visitors: 620, pageViews: 2480, orders: 18, revenue_syp: 98000000, revenue_usd: 6530 },
+  { date: '2026-09-06', label: '6 أيلول', visitors: 740, pageViews: 3100, orders: 22, revenue_syp: 125000000, revenue_usd: 8330 },
+  { date: '2026-09-07', label: '7 أيلول', visitors: 690, pageViews: 2760, orders: 16, revenue_syp: 88000000, revenue_usd: 5860 },
+  { date: '2026-09-08', label: '8 أيلول', visitors: 580, pageViews: 2320, orders: 14, revenue_syp: 74000000, revenue_usd: 4930 },
+  { date: '2026-09-09', label: '9 أيلول', visitors: 640, pageViews: 2560, orders: 15, revenue_syp: 81000000, revenue_usd: 5400 },
+  { date: '2026-09-10', label: '10 أيلول', visitors: 710, pageViews: 2980, orders: 19, revenue_syp: 104000000, revenue_usd: 6930 },
+  { date: '2026-09-11', label: '11 أيلول', visitors: 820, pageViews: 3450, orders: 24, revenue_syp: 136000000, revenue_usd: 9060 },
+  { date: '2026-09-12', label: '12 أيلول', visitors: 890, pageViews: 3780, orders: 27, revenue_syp: 158000000, revenue_usd: 10530 },
+  { date: '2026-09-13', label: '13 أيلول', visitors: 760, pageViews: 3120, orders: 20, revenue_syp: 112000000, revenue_usd: 7460 },
+  { date: '2026-09-14', label: '14 أيلول', visitors: 930, pageViews: 4100, orders: 29, revenue_syp: 172000000, revenue_usd: 11460 },
+  { date: '2026-09-15', label: 'اليوم', visitors: 615, pageViews: 2590, orders: 17, revenue_syp: 96500000, revenue_usd: 6433 }
 ];
 

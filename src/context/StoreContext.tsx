@@ -10,8 +10,14 @@ import {
   StoreSettings,
   PhoneRequest,
   SpTodayExchangeData,
-  LiraDisplayMode
+  LiraDisplayMode,
+  HeroSlide,
+  StaffUser,
+  StaffRole,
+  VisitorStatDay,
+  AnalyticsVisitRecord
 } from '../types';
+import { getSupabaseClient } from '../lib/supabase';
 import { fetchLiveDollarRate, DEFAULT_FALLBACK_RATE } from '../utils/exchangeRateClient';
 import { translations } from '../locales/translations';
 import {
@@ -21,7 +27,10 @@ import {
   initialOrders,
   initialMaintenanceRequests,
   initialBrands,
-  initialPhoneRequests
+  initialPhoneRequests,
+  initialHeroSlides,
+  initialStaffUsers,
+  initialVisitorStats
 } from '../data/initialData';
 
 interface SheetsSyncLog {
@@ -65,19 +74,48 @@ interface StoreContextType {
   activeCategoryFilter: string | null;
   setActiveCategoryFilter: (catId: string | null) => void;
   
-  // Private Admin Portal Navigation
+  // Private Admin Portal Navigation & Security
   isPrivateAdminRoute: boolean;
+  isAdminAuthenticated: boolean;
+  loginAdmin: (user: string, pass: string) => boolean;
+  logoutAdmin: () => void;
   getPrivateAdminLink: () => string;
   exitAdminPortal: () => void;
+  returnToStorefront: () => void;
   
   // Data
   products: Product[];
   addProduct: (product: Omit<Product, 'id' | 'created_at'>) => void;
   updateProduct: (id: string, product: Partial<Product>) => void;
+  quickUpdateProductPrice: (id: string, newPriceSYP: number, newPriceUSD?: number) => void;
   deleteProduct: (id: string) => void;
+  archiveProduct: (id: string, isArchived: boolean) => void;
   
   categories: Category[];
+  addCategory: (catData: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, data: Partial<Category>) => void;
+  deleteCategory: (id: string) => void;
+  archiveCategory: (id: string, isArchived: boolean) => void;
+  
+  heroSlides: HeroSlide[];
+  addHeroSlide: (slide: Omit<HeroSlide, 'id'>) => void;
+  updateHeroSlide: (id: string, data: Partial<HeroSlide>) => void;
+  deleteHeroSlide: (id: string) => void;
+  
+  staffUsers: StaffUser[];
+  addStaffUser: (user: Omit<StaffUser, 'id' | 'created_at'>) => void;
+  updateStaffUser: (id: string, data: Partial<StaffUser>) => void;
+  deleteStaffUser: (id: string) => void;
+  activeStaffRole: StaffRole;
+  setActiveStaffRole: (role: StaffRole) => void;
+  
+  // Analytics & Permanent Storage
+  visitorStats: VisitorStatDay[];
+  analyticsVisits: AnalyticsVisitRecord[];
+  trackVisit: (path: string, pageTitle?: string) => void;
+  saveAllDataToSupabase: () => Promise<{ success: boolean; message: string }>;
+  generateSitemapXml: () => string;
+  generateRobotsTxt: () => string;
   
   orders: Order[];
   createOrder: (orderData: {
@@ -218,39 +256,69 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }, 4000);
   };
 
-  // Private Admin Route Detection via URL Hash or Query
-  // Admin is fully separated from public navigation and accessible via dedicated private link (e.g. #admin-portal or ?admin=laith)
+  // Private Admin Route & Dedicated URL Detection
   const checkIsAdminHash = () => {
     if (typeof window === 'undefined') return false;
+    const path = window.location.pathname.toLowerCase();
     const hash = window.location.hash.toLowerCase();
     const search = window.location.search.toLowerCase();
-    return hash === '#admin-portal' || hash === '#admin' || search.includes('portal=admin') || search.includes('admin=laith');
+    return (
+      path.endsWith('/admin') ||
+      path === '/admin/' ||
+      hash === '#admin' ||
+      hash === '#/admin' ||
+      hash === '#admin-portal' ||
+      search.includes('portal=admin') ||
+      search.includes('admin=laith')
+    );
   };
 
   const [isPrivateAdminRoute, setIsPrivateAdminRoute] = useState<boolean>(checkIsAdminHash);
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return sessionStorage.getItem('allaith_admin_auth') === 'true';
+  });
+
   const [currentView, setCurrentViewState] = useState<'home' | 'catalog' | 'pdp' | 'admin'>(() => {
     return checkIsAdminHash() ? 'admin' : 'home';
   });
 
-  // Listen to hash changes so direct navigation to #admin-portal works immediately
-  useEffect(() => {
-    const handleHashChange = () => {
-      if (checkIsAdminHash()) {
-        setIsPrivateAdminRoute(true);
-        setCurrentViewState('admin');
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
 
   const setCurrentView = (view: 'home' | 'catalog' | 'pdp' | 'admin') => {
     if (view === 'admin') {
-      window.location.hash = 'admin-portal';
+      window.location.hash = '/admin';
       setIsPrivateAdminRoute(true);
+    } else if (view === 'home') {
+      if (window.location.hash.includes('admin')) {
+        window.location.hash = '';
+      }
+      setIsPrivateAdminRoute(false);
     }
     setCurrentViewState(view);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const loginAdmin = (usernameInput: string, passwordInput: string): boolean => {
+    const validUser = (storeSettings.admin_username || 'admin').trim();
+    const validPass = (storeSettings.admin_password || 'laith2026').trim();
+
+    if (usernameInput.trim() === validUser && passwordInput.trim() === validPass) {
+      setIsAdminAuthenticated(true);
+      sessionStorage.setItem('allaith_admin_auth', 'true');
+      showToast(locale === 'ar' ? 'تم تسجيل الدخول إلى لوحة التحكم بنجاح!' : 'Logged in to dashboard successfully!');
+      return true;
+    }
+    return false;
+  };
+
+  const logoutAdmin = () => {
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('allaith_admin_auth');
+    exitAdminPortal();
+    showToast(locale === 'ar' ? 'تم تسجيل الخروج من لوحة التحكم' : 'Logged out from control panel');
   };
 
   const exitAdminPortal = () => {
@@ -261,14 +329,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentViewState('home');
   };
 
-  const getPrivateAdminLink = () => {
-    if (typeof window === 'undefined') return '';
-    return `${window.location.origin}${window.location.pathname}#admin-portal`;
+  const returnToStorefront = () => {
+    exitAdminPortal();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
+  const getPrivateAdminLink = () => {
+    if (typeof window === 'undefined') return '';
+    return `${window.location.origin}/admin (أو ${window.location.origin}/#/admin)`;
+  };
 
   // Modals
   const [isCartOpen, setIsCartOpen] = useState(false);
@@ -454,8 +523,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [products]);
 
   const addProduct = (prodData: Omit<Product, 'id' | 'created_at'>) => {
+    // Generate clean unique URL slug from title
+    const baseSlug = (prodData.slug || prodData.title_en || prodData.title_ar || `product-${Date.now()}`)
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `product-${Date.now()}`;
+
+    // Auto-calculate discount if compare_at_price is provided
+    let hasDiscount = prodData.has_discount;
+    let discountPercent = prodData.discount_percent || 0;
+    if (prodData.compare_at_price && prodData.compare_at_price > prodData.price) {
+      hasDiscount = true;
+      discountPercent = Math.round(((prodData.compare_at_price - prodData.price) / prodData.compare_at_price) * 100);
+    } else if (prodData.compare_at_price_usd && prodData.price_usd && prodData.compare_at_price_usd > prodData.price_usd) {
+      hasDiscount = true;
+      discountPercent = Math.round(((prodData.compare_at_price_usd - prodData.price_usd) / prodData.compare_at_price_usd) * 100);
+    }
+
     const newProduct: Product = {
       ...prodData,
+      slug: baseSlug,
+      has_discount: hasDiscount,
+      discount_percent: discountPercent,
+      is_archived: false,
       id: `prod-${Date.now()}`,
       created_at: new Date().toISOString()
     };
@@ -465,7 +557,18 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updateProduct = (id: string, updated: Partial<Product>) => {
     setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updated } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const merged = { ...p, ...updated };
+        if (merged.compare_at_price && merged.compare_at_price > merged.price) {
+          merged.has_discount = true;
+          merged.discount_percent = Math.round(((merged.compare_at_price - merged.price) / merged.compare_at_price) * 100);
+        } else if (merged.compare_at_price_usd && merged.price_usd && merged.compare_at_price_usd > merged.price_usd) {
+          merged.has_discount = true;
+          merged.discount_percent = Math.round(((merged.compare_at_price_usd - merged.price_usd) / merged.compare_at_price_usd) * 100);
+        }
+        return merged;
+      })
     );
     showToast(t('product_saved'));
   };
@@ -473,6 +576,31 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const deleteProduct = (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
     showToast(t('product_deleted'));
+  };
+
+  const archiveProduct = (id: string, isArchived: boolean) => {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_archived: isArchived } : p)));
+    showToast(
+      isArchived
+        ? (locale === 'ar' ? 'تمت أرشفة المنتج وإخفاؤه من الواجهة العامة للمتجر' : 'Product archived and hidden from public store')
+        : (locale === 'ar' ? 'تمت استعادة المنتج وإلغاء الأرشفة بنجاح' : 'Product restored and unarchived')
+    );
+  };
+
+  const quickUpdateProductPrice = (id: string, newPriceSYP: number, newPriceUSD?: number) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const currentRate = storeSettings.usd_exchange_rate > 0 ? storeSettings.usd_exchange_rate : 15000;
+        const usd = newPriceUSD !== undefined && newPriceUSD > 0 ? newPriceUSD : Math.round(newPriceSYP / currentRate);
+        return {
+          ...p,
+          price: newPriceSYP,
+          price_usd: usd
+        };
+      })
+    );
+    showToast(locale === 'ar' ? 'تم تحديث السعر وحفظه فوراً في المتجر!' : 'Price updated and saved instantly!');
   };
 
   // Brands Management (Dynamic brands configurable from Admin Panel)
@@ -635,11 +763,373 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('allaith_categories', JSON.stringify(categories));
   }, [categories]);
 
+  const addCategory = (catData: Omit<Category, 'id'>) => {
+    const baseSlug = (catData.slug || catData.name_en || catData.name_ar || `cat-${Date.now()}`)
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || `cat-${Date.now()}`;
+
+    const newCat: Category = {
+      ...catData,
+      slug: baseSlug,
+      is_archived: false,
+      id: `cat-${Date.now()}`
+    };
+    setCategories((prev) => [...prev, newCat]);
+    showToast(locale === 'ar' ? 'تمت إضافة الفئة بنجاح!' : 'Category added successfully!');
+  };
+
   const updateCategory = (id: string, data: Partial<Category>) => {
     setCategories((prev) =>
       prev.map((c) => (c.id === id ? { ...c, ...data } : c))
     );
+    showToast(locale === 'ar' ? 'تم تحديث بيانات الفئة' : 'Category updated');
   };
+
+  const deleteCategory = (id: string) => {
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    showToast(locale === 'ar' ? 'تم حذف الفئة' : 'Category deleted');
+  };
+
+  const archiveCategory = (id: string, isArchived: boolean) => {
+    setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: isArchived } : c)));
+    showToast(
+      isArchived
+        ? (locale === 'ar' ? 'تمت أرشفة الفئة وإخفاؤها من المتجر' : 'Category archived and hidden')
+        : (locale === 'ar' ? 'تمت استعادة الفئة وإلغاء الأرشفة بنجاح' : 'Category restored and unarchived')
+    );
+  };
+
+  // Synchronize URL and handle back/forward browser navigation
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+
+      if (checkIsAdminHash()) {
+        setIsPrivateAdminRoute(true);
+        setCurrentViewState('admin');
+        return;
+      }
+
+      setIsPrivateAdminRoute(false);
+
+      // Check product slug e.g. #/product/slug or /product/slug
+      const prodMatch = hash.match(/^#\/?product\/([^/?#]+)/i) || path.match(/^\/product\/([^/?#]+)/i);
+      if (prodMatch && prodMatch[1]) {
+        const targetSlug = prodMatch[1];
+        const found = products.find(p => p.slug === targetSlug || p.id === targetSlug);
+        if (found) {
+          setSelectedProductId(found.id);
+          setCurrentViewState('pdp');
+          return;
+        }
+      }
+
+      // Check category slug e.g. #/category/slug
+      const catMatch = hash.match(/^#\/?category\/([^/?#]+)/i) || path.match(/^\/category\/([^/?#]+)/i);
+      if (catMatch && catMatch[1]) {
+        const targetCatSlug = catMatch[1];
+        const foundCat = categories.find(c => c.slug === targetCatSlug || c.id === targetCatSlug);
+        if (foundCat) {
+          setActiveCategoryFilter(foundCat.id);
+          setCurrentViewState('catalog');
+          return;
+        }
+      }
+
+      if (hash === '#/catalog' || hash === '#catalog' || path === '/catalog') {
+        setCurrentViewState('catalog');
+        return;
+      }
+
+      if (!hash || hash === '#' || hash === '#/' || path === '/') {
+        setCurrentViewState('home');
+      }
+    };
+
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, [products, categories]);
+
+  // Hero Slider Slides (Dynamic homepage banners editable from dashboard)
+  const [heroSlides, setHeroSlides] = useState<HeroSlide[]>(() => {
+    try {
+      const saved = localStorage.getItem('allaith_hero_slides');
+      return saved ? JSON.parse(saved) : initialHeroSlides;
+    } catch {
+      return initialHeroSlides;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('allaith_hero_slides', JSON.stringify(heroSlides));
+  }, [heroSlides]);
+
+  const addHeroSlide = (slide: Omit<HeroSlide, 'id'>) => {
+    const newSlide: HeroSlide = {
+      ...slide,
+      id: `slide-${Date.now()}`
+    };
+    setHeroSlides((prev) => [...prev, newSlide]);
+    showToast(locale === 'ar' ? 'تمت إضافة بانر جديد للرئيسية' : 'New hero banner added');
+  };
+
+  const updateHeroSlide = (id: string, data: Partial<HeroSlide>) => {
+    setHeroSlides((prev) => prev.map((s) => (s.id === id ? { ...s, ...data } : s)));
+    showToast(locale === 'ar' ? 'تم حفظ تعديلات البانر بنجاح' : 'Banner slide updated');
+  };
+
+  const deleteHeroSlide = (id: string) => {
+    setHeroSlides((prev) => prev.filter((s) => s.id !== id));
+    showToast(locale === 'ar' ? 'تم حذف البانر' : 'Banner slide deleted');
+  };
+
+  // Staff Users & Restricted Access Roles (RBAC)
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>(() => {
+    try {
+      const saved = localStorage.getItem('allaith_staff_users');
+      return saved ? JSON.parse(saved) : initialStaffUsers;
+    } catch {
+      return initialStaffUsers;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('allaith_staff_users', JSON.stringify(staffUsers));
+  }, [staffUsers]);
+
+  const [activeStaffRole, setActiveStaffRole] = useState<StaffRole>('super_admin');
+
+  const addStaffUser = (user: Omit<StaffUser, 'id' | 'created_at'>) => {
+    const newUser: StaffUser = {
+      ...user,
+      id: `staff-${Date.now()}`,
+      created_at: new Date().toISOString()
+    };
+    setStaffUsers((prev) => [...prev, newUser]);
+    showToast(locale === 'ar' ? 'تمت إضافة المستخدم وتحديد الصلاحيات!' : 'User added successfully!');
+  };
+
+  const updateStaffUser = (id: string, data: Partial<StaffUser>) => {
+    setStaffUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...data } : u)));
+    showToast(locale === 'ar' ? 'تم تحديث صلاحيات المستخدم' : 'User updated');
+  };
+
+  const deleteStaffUser = (id: string) => {
+    setStaffUsers((prev) => prev.filter((u) => u.id !== id));
+    showToast(locale === 'ar' ? 'تم حذف المستخدم من النظام' : 'User removed');
+  };
+
+  // Visitor Analytics & Permanent Visit Logs
+  const [visitorStats] = useState<VisitorStatDay[]>(() => {
+    try {
+      const saved = localStorage.getItem('allaith_visitor_stats');
+      return saved ? JSON.parse(saved) : initialVisitorStats;
+    } catch {
+      return initialVisitorStats;
+    }
+  });
+
+  const [analyticsVisits, setAnalyticsVisits] = useState<AnalyticsVisitRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('allaith_analytics_visits');
+      if (saved) return JSON.parse(saved);
+      // Realistic pre-seeded visit records across various timeframes
+      const seeds: AnalyticsVisitRecord[] = [];
+      const now = Date.now();
+      const mockPaths = ['/', '/catalog', '/offers', '/category/smartphones', '/category/appliances', '/product/apple-iphone-16-pro-max', '/product/samsung-galaxy-s24-ultra'];
+      const referrers = ['Google Search', 'Direct URL', 'Instagram', 'Facebook', 'Telegram'];
+      const devices: ('desktop' | 'mobile' | 'tablet')[] = ['mobile', 'mobile', 'desktop', 'desktop', 'tablet'];
+
+      for (let i = 0; i < 48; i++) {
+        const timeAgoMs = Math.floor(Math.random() * 25 * 86400000);
+        seeds.push({
+          id: `vis_${Date.now() - timeAgoMs}_${i}`,
+          timestamp: new Date(now - timeAgoMs).toISOString(),
+          path: mockPaths[i % mockPaths.length],
+          page_title: i % 2 === 0 ? 'متجر الليث للاتصالات' : 'Al-Laith Catalog',
+          referrer: referrers[i % referrers.length],
+          device: devices[i % devices.length],
+          visitor_id: `user_${(i % 12) + 1}`,
+          duration_seconds: Math.floor(Math.random() * 180) + 15
+        });
+      }
+      return seeds;
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('allaith_analytics_visits', JSON.stringify(analyticsVisits));
+  }, [analyticsVisits]);
+
+  const trackVisit = useCallback((visitPath: string, pageTitle?: string) => {
+    const newRecord: AnalyticsVisitRecord = {
+      id: `v_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: new Date().toISOString(),
+      path: visitPath,
+      page_title: pageTitle || 'Al-Laith Telecom',
+      referrer: typeof document !== 'undefined' && document.referrer ? (new URL(document.referrer, window.location.origin).hostname || 'Direct') : 'Direct',
+      device: typeof window !== 'undefined' ? (window.innerWidth < 640 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop') : 'desktop',
+      visitor_id: (() => {
+        let vid = localStorage.getItem('allaith_visitor_uid');
+        if (!vid) {
+          vid = 'u_' + Math.random().toString(36).substring(2, 9);
+          localStorage.setItem('allaith_visitor_uid', vid);
+        }
+        return vid;
+      })(),
+      duration_seconds: 45
+    };
+
+    setAnalyticsVisits((prev) => [newRecord, ...prev.slice(0, 1500)]);
+
+    // Send to backend
+    fetch('/api/analytics/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRecord)
+    }).catch(() => {});
+  }, []);
+
+  // Supabase Database Full Sync
+  const saveAllDataToSupabase = async (): Promise<{ success: boolean; message: string }> => {
+    const supabaseUrl = storeSettings.supabase_url || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_url') : null);
+    const supabaseKey = storeSettings.supabase_anon_key || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_key') : null);
+
+    if (!supabaseUrl || !supabaseKey) {
+      showToast(locale === 'ar' ? 'يرجى إدخال رابط ومفتاح Supabase في إعدادات النظام أولاً' : 'Please configure Supabase URL & Anon Key in settings first.');
+      return { success: false, message: 'Missing Supabase URL or Anon Key' };
+    }
+
+    const client = getSupabaseClient(supabaseUrl, supabaseKey);
+    if (!client) {
+      showToast(locale === 'ar' ? 'فشل الاتصال بـ Supabase' : 'Failed to connect to Supabase');
+      return { success: false, message: 'Could not initialize client' };
+    }
+
+    try {
+      // 1. Sync Store Settings
+      await client.from('store_settings').upsert({
+        id: 'default',
+        site_name_ar: storeSettings.site_name_ar,
+        site_name_en: storeSettings.site_name_en,
+        logo_url: storeSettings.logo_url,
+        custom_logo_url: storeSettings.custom_logo_url,
+        whatsapp_number: storeSettings.whatsapp_number,
+        maintenance_whatsapp: storeSettings.maintenance_whatsapp,
+        usd_exchange_rate: storeSettings.usd_exchange_rate,
+        store_address_ar: storeSettings.store_address_ar,
+        store_address_en: storeSettings.store_address_en,
+        store_phone: storeSettings.store_phone,
+        store_email: storeSettings.store_email,
+        store_lat: storeSettings.store_lat,
+        store_lng: storeSettings.store_lng,
+        footer_quick_links: storeSettings.footer_quick_links || []
+      });
+
+      // 2. Sync Categories
+      if (categories.length > 0) {
+        await client.from('categories').upsert(
+          categories.map((c) => ({
+            id: c.id,
+            name_ar: c.name_ar,
+            name_en: c.name_en,
+            slug: c.slug,
+            image_url: c.image_url,
+            sort_order: c.sort_order,
+            is_archived: !!c.is_archived
+          }))
+        );
+      }
+
+      // 3. Sync Products
+      if (products.length > 0) {
+        await client.from('products').upsert(
+          products.map((p) => ({
+            id: p.id,
+            title_ar: p.title_ar,
+            title_en: p.title_en,
+            slug: p.slug,
+            description_ar: p.description_ar,
+            description_en: p.description_en,
+            category_id: p.category_id,
+            brand: p.brand,
+            price: p.price,
+            price_usd: p.price_usd,
+            compare_at_price: p.compare_at_price,
+            compare_at_price_usd: p.compare_at_price_usd,
+            has_discount: !!p.has_discount,
+            discount_percent: p.discount_percent || 0,
+            condition: p.condition || 'new',
+            condition_details: p.condition_details,
+            device_type: p.device_type,
+            images: p.images,
+            variants: p.variants,
+            variant_combinations: p.variant_combinations || [],
+            specs: p.specs,
+            stock_quantity: p.stock_quantity,
+            is_featured: !!p.is_featured,
+            is_archived: !!p.is_archived,
+            sku: p.sku
+          }))
+        );
+      }
+
+      showToast(locale === 'ar' ? 'تم حفظ ومزامنة كافة البيانات مع قاعدة بيانات Supabase بنجاح!' : 'All data synced to Supabase successfully!');
+      return { success: true, message: 'All tables synced successfully' };
+    } catch (err: any) {
+      console.error('Supabase sync error:', err);
+      const msg = err?.message || 'Sync error';
+      showToast(locale === 'ar' ? `خطأ مزامنة: ${msg}` : `Sync error: ${msg}`);
+      return { success: false, message: msg };
+    }
+  };
+
+  // Dynamic XML Sitemap Generator
+  const generateSitemapXml = useCallback((): string => {
+    const baseUrl = storeSettings.site_domain || 'https://allaith.vercel.app';
+    const now = new Date().toISOString().split('T')[0];
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+    // Homepage
+    xml += `  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n`;
+
+    // Catalog
+    xml += `  <url>\n    <loc>${baseUrl}/#catalog</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n`;
+
+    // Maintenance
+    xml += `  <url>\n    <loc>${baseUrl}/#maintenance</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>\n`;
+
+    // Categories
+    categories.forEach((cat) => {
+      xml += `  <url>\n    <loc>${baseUrl}/#catalog?category=${cat.slug}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
+    });
+
+    // Products
+    products.forEach((prod) => {
+      xml += `  <url>\n    <loc>${baseUrl}/#product=${prod.slug || prod.id}</loc>\n    <lastmod>${prod.created_at ? prod.created_at.split('T')[0] : now}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.85</priority>\n  </url>\n`;
+    });
+
+    xml += `</urlset>`;
+    return xml;
+  }, [categories, products, storeSettings.site_domain]);
+
+  // Robots.txt Generator
+  const generateRobotsTxt = useCallback((): string => {
+    const baseUrl = storeSettings.site_domain || 'https://allaith.vercel.app';
+    return `User-agent: *\nAllow: /\nDisallow: /#admin-portal\n\nSitemap: ${baseUrl}/sitemap.xml\n`;
+  }, [storeSettings.site_domain]);
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -1161,14 +1651,39 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeCategoryFilter,
         setActiveCategoryFilter,
         isPrivateAdminRoute,
+        isAdminAuthenticated,
+        loginAdmin,
+        logoutAdmin,
         getPrivateAdminLink,
         exitAdminPortal,
+        returnToStorefront,
         products,
         addProduct,
         updateProduct,
+        quickUpdateProductPrice,
         deleteProduct,
+        archiveProduct,
         categories,
+        addCategory,
         updateCategory,
+        deleteCategory,
+        archiveCategory,
+        heroSlides,
+        addHeroSlide,
+        updateHeroSlide,
+        deleteHeroSlide,
+        staffUsers,
+        addStaffUser,
+        updateStaffUser,
+        deleteStaffUser,
+        activeStaffRole,
+        setActiveStaffRole,
+        visitorStats,
+        analyticsVisits,
+        trackVisit,
+        saveAllDataToSupabase,
+        generateSitemapXml,
+        generateRobotsTxt,
         orders,
         createOrder,
         updateOrderStatus,

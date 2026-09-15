@@ -2,15 +2,73 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { fetchSpTodayRates } from './src/utils/spTodayService';
+import { GoogleGenAI } from '@google/genai';
+
+let aiClient: GoogleGenAI | null = null;
+function getAI(): GoogleGenAI | null {
+  if (!aiClient && process.env.GEMINI_API_KEY) {
+    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  }
+  return aiClient;
+}
+
+// In-memory persistent visit tracker (in addition to client-side localStorage and Supabase)
+interface StoredVisit {
+  id: string;
+  timestamp: string;
+  path: string;
+  page_title: string;
+  referrer: string;
+  device: string;
+  visitor_id: string;
+}
+const storedVisits: StoredVisit[] = [];
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   // JSON middleware
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
-  // API endpoint: Fetch real-time Dollar exchange rate from https://sp-today.com/en
+  // Google-compatible XML Sitemap (https://allaith.vercel.app/sitemap.xml)
+  app.get('/sitemap.xml', (req, res) => {
+    const baseUrl = 'https://allaith.vercel.app';
+    const now = new Date().toISOString().split('T')[0];
+
+    const defaultSlugs = [
+      '',
+      '/catalog',
+      '/offers',
+      '/category/smartphones',
+      '/category/tablets',
+      '/category/chargers_power',
+      '/category/accessories',
+      '/product/iphone-15-pro-max',
+      '/product/samsung-galaxy-s24-ultra',
+      '/product/xiaomi-14-pro',
+      '/product/anker-prime-20000mah'
+    ];
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+${defaultSlugs.map(slug => `  <url>
+    <loc>${baseUrl}${slug}</loc>
+    <lastmod>${now}</lastmod>
+    <changefreq>${slug === '' ? 'daily' : 'weekly'}</changefreq>
+    <priority>${slug === '' ? '1.0' : slug.startsWith('/product') ? '0.9' : '0.8'}</priority>
+  </url>`).join('\n')}
+</urlset>`;
+
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.send(xml);
+  });
+
+  // API endpoint: Real-time Dollar exchange rate from sp-today.com
   app.get('/api/exchange-rate', async (req, res) => {
     try {
       const data = await fetchSpTodayRates();
@@ -26,6 +84,136 @@ async function startServer() {
         error: err?.message || 'Failed to fetch exchange rate from sp-today.com'
       });
     }
+  });
+
+  // API endpoint: Multi-turn Gemini AI Chatbot for Al-Laith Store Assistant
+  app.post('/api/ai/chat', async (req, res) => {
+    try {
+      const { messages, activeCurrency, exchangeRate } = req.body;
+      const ai = getAI();
+
+      if (!ai) {
+        // Smart fallback response if API key is not yet set
+        return res.json({
+          reply: 'أهلاً بك في متجر الليث للاتصالات! نحن بخدمتك في اللاذقية وسائر المحافظات السورية. نوفر أحدث الهواتف الذكية مع كفالة رسمية، ومخبر صيانة إلكتروني متخصص وقطع غيار أصلية. كيف يمكنني مساعدتك في استفسارك اليوم؟',
+          model: 'local-fallback'
+        });
+      }
+
+      const systemInstruction = `أنت المساعد الذكي الرسمي لمتجر "الليث للاتصالات" (Al-Laith for Telecommunications) في سوريا.
+المتجر يقع في اللاذقية - شارع 8 آذار، هاتف وتساب: 963944000000.
+خدمات المتجر:
+1. بيع أحدث الهواتف الذكية (iPhone, Samsung, Xiaomi) والأجهزة اللوحية والإكسسوارات الأصلية.
+2. مخبر صيانة متخصص لفحص وتصليح اللوحات الإلكترونية، تبديل الشاشات والبطاريات مع كفالة.
+3. توصيل وشحن آمن لكافة المحافظات السورية والدفع نقداً عند الاستلام.
+4. سعر الصرف اليومي المعتمد للدولار: ${exchangeRate || 15000} ليرة سورية.
+أجب الزبائن بلباقة واحترافية وبشكل مفيد وسريع، واقترح عليهم الأجهزة المناسبة ومواصفاتها والأسعار بالليرة والدولار.`;
+
+      // Format conversation history for Gemini
+      const formattedContents = (messages || []).map((m: { role: string; content: string }) => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+      if (formattedContents.length === 0) {
+        formattedContents.push({ role: 'user', parts: [{ text: 'مرحبا' }] });
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: formattedContents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      return res.json({
+        reply: response.text || 'مرحباً بك! تفضل كيف يمكنني مساعدتك اليوم؟',
+        model: 'gemini-3.5-flash'
+      });
+    } catch (err: any) {
+      console.error('Error in /api/ai/chat:', err);
+      return res.json({
+        reply: 'أهلاً بك في متجر الليث للاتصالات! فريقنا جاهز للإجابة عن أسعار الأجهزة وكفالتها وخدمات الصيانة. يمكنك أيضاً مراسلتنا مباشرة عبر وتساب.',
+        fallback: true
+      });
+    }
+  });
+
+  // API endpoint: Automatic translation of Arabic specifications into English
+  app.post('/api/ai/translate', async (req, res) => {
+    try {
+      const { title_ar, description_ar, specs } = req.body;
+      const ai = getAI();
+
+      if (!ai) {
+        // Simple fallback translation
+        return res.json({
+          title_en: title_ar || '',
+          description_en: description_ar || '',
+          specs: specs || []
+        });
+      }
+
+      const prompt = `Translate the following product information and technical specifications from Arabic to English for an e-commerce electronics store:
+Title: "${title_ar}"
+Description: "${description_ar}"
+Specs: ${JSON.stringify(specs || [])}
+
+Return a valid JSON object strictly matching this schema:
+{
+  "title_en": "translated English title",
+  "description_en": "translated English description",
+  "specs": [
+    { "key_ar": "المعالج", "key_en": "Processor", "val_ar": "A17 Pro", "val_en": "A17 Pro" }
+  ]
+}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: 'application/json'
+        }
+      });
+
+      let parsed = {};
+      try {
+        parsed = JSON.parse(response.text || '{}');
+      } catch {
+        parsed = {};
+      }
+
+      return res.json(parsed);
+    } catch (err: any) {
+      console.error('Error in /api/ai/translate:', err);
+      return res.status(500).json({ error: 'Translation failed' });
+    }
+  });
+
+  // API endpoint: Permanent Analytics Visit Logger
+  app.post('/api/analytics/track', (req, res) => {
+    const { path: visitPath, page_title, referrer, device, visitor_id } = req.body;
+    const visit: StoredVisit = {
+      id: 'v_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+      timestamp: new Date().toISOString(),
+      path: visitPath || '/',
+      page_title: page_title || 'Home',
+      referrer: referrer || 'Direct',
+      device: device || 'desktop',
+      visitor_id: visitor_id || 'anon'
+    };
+    storedVisits.push(visit);
+    if (storedVisits.length > 5000) storedVisits.shift(); // Keep last 5000 in memory
+    return res.json({ success: true, count: storedVisits.length });
+  });
+
+  app.get('/api/analytics/summary', (req, res) => {
+    return res.json({
+      total_visits: storedVisits.length,
+      visits: storedVisits.slice(-200)
+    });
   });
 
   // Health endpoint

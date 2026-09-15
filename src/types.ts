@@ -43,12 +43,29 @@ export interface Variant {
   priceModifier?: number;
 }
 
+export interface VariantCombination {
+  id: string;
+  combination_name_ar?: string;
+  combination_name_en?: string;
+  attributes: Record<string, string>; // e.g. { "Color": "Black", "Storage": "256GB" }
+  price?: number;
+  price_usd?: number; // e.g. 1000
+  price_syp?: number;
+  stock_quantity: number;
+  sku?: string;
+  image?: string;
+}
+
+export type ProductVariantCombination = VariantCombination;
+
 export interface ProductSpec {
   key_ar: string;
   key_en: string;
   val_ar: string;
   val_en: string;
 }
+
+export type ProductSpecItem = ProductSpec;
 
 export type ProductPricingType = 'syp' | 'usd' | 'inquire';
 export type ProductPricingStrategy = 'auto_daily_rate' | 'usd_as_base' | 'fixed_usd' | 'manual_syp';
@@ -72,23 +89,27 @@ export interface Product {
   slug: string;
   description_ar: string;
   description_en: string;
-  pricing_type?: ProductPricingType; // 'syp' (Syrian Lira), 'usd' (US Dollar), or 'inquire' (WhatsApp quote)
-  pricing_strategy?: ProductPricingStrategy; // 'auto_daily_rate' (auto SYP from daily live rate), 'usd_as_base' (USD base price converted to SYP), 'fixed_usd' (fixed USD price), 'manual_syp' (manual SYP price)
-  price: number; // Stored in SYP (Syrian Lira) as site base price
-  price_usd?: number; // Secondary / base USD price
+  pricing_type?: ProductPricingType;
+  pricing_strategy?: ProductPricingStrategy;
+  price: number; // Stored in SYP
+  price_usd?: number; // Base USD price
   compare_at_price?: number; // In SYP
   compare_at_price_usd?: number; // In USD
-  condition?: ProductCondition; // 'new' (جديد) or 'used' (مستعمل)
-  condition_details?: string; // e.g. "نظافة 99% مع العلبة وشاحن أصلي" or "بطارية 92%"
-  device_type?: DeviceType | string; // e.g. 'smartphone', 'tablet', 'laptop', etc.
+  has_discount?: boolean;
+  discount_percent?: number; // e.g. 15% off
+  condition?: ProductCondition;
+  condition_details?: string;
+  device_type?: DeviceType | string;
   category_id: string;
   brand: string;
   images: string[];
   variants: Variant[];
+  variant_combinations?: VariantCombination[];
   stock_quantity: number;
   is_featured: boolean;
   is_new?: boolean;
   is_deal_of_the_day?: boolean;
+  is_archived?: boolean; // Archived = hidden from public interface
   cost_price?: number;
   rating: number;
   reviews_count: number;
@@ -96,7 +117,7 @@ export interface Product {
   specs: ProductSpec[];
   warranty_ar?: string;
   warranty_en?: string;
-  tags?: string[]; // Alert tags e.g. 'sale', 'deal_of_the_day', 'bestseller', 'lab_certified', 'limited_stock', 'free_shipping'
+  tags?: string[];
   created_at: string;
 }
 
@@ -108,6 +129,7 @@ export interface Category {
   image_url: string;
   sort_order: number;
   icon_name?: string;
+  is_archived?: boolean; // Archived = hidden from public interface
 }
 
 export interface CartItem {
@@ -203,10 +225,31 @@ export interface PromotionalOffer {
   link: string;
 }
 
+export interface FooterQuickLink {
+  id: string;
+  title_ar: string;
+  title_en: string;
+  url: string;
+  enabled: boolean;
+}
+
+export interface AnalyticsVisitRecord {
+  id: string;
+  timestamp: string; // ISO date string
+  path: string;
+  page_title: string;
+  referrer: string;
+  device: 'mobile' | 'desktop' | 'tablet';
+  visitor_id: string;
+  duration_seconds?: number;
+}
+
 export interface StoreSettings {
   site_name_ar: string;
   site_name_en: string;
   logo_url: string;
+  custom_logo_url?: string;
+  footer_logo_url?: string;
   whatsapp_number: string;
   maintenance_whatsapp: string;
   whatsapp_preset_greeting_ar: string;
@@ -231,4 +274,51 @@ export interface StoreSettings {
   google_sheets_webhook_url: string;
   google_sheet_id: string;
   google_sheets_sync_enabled: boolean;
+  // Google Services Suite & SEO
+  site_domain?: string;
+  google_analytics_id?: string;
+  google_search_console_tag?: string;
+  google_ads_id?: string;
+  google_adsense_client?: string;
+  // Supabase Database Integration
+  supabase_url?: string;
+  supabase_anon_key?: string;
+  supabase_enabled?: boolean;
+  // Footer Quick Links
+  footer_quick_links?: FooterQuickLink[];
+  // Main Administrator Credentials (Protected URL Access)
+  admin_username?: string;
+  admin_password?: string;
+}
+
+export type StaffRole = 'super_admin' | 'store_manager' | 'order_support' | 'content_editor';
+
+export interface StaffPermissions {
+  canManageProducts: boolean;
+  canManageOrders: boolean;
+  canManageSettings: boolean;
+  canViewAnalytics: boolean;
+  canManageContent: boolean;
+  canManageUsers: boolean;
+}
+
+export interface StaffUser {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  avatar?: string;
+  active: boolean;
+  permissions: StaffPermissions;
+  created_at: string;
+}
+
+export interface VisitorStatDay {
+  date: string;
+  label: string;
+  visitors: number;
+  pageViews: number;
+  orders: number;
+  revenue_syp: number;
+  revenue_usd: number;
 }

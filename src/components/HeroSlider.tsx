@@ -4,9 +4,9 @@ import { initialHeroSlides } from '../data/initialData';
 import { ChevronLeft, ChevronRight, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const HeroSlider: React.FC = () => {
-  const { locale, t, setCurrentView, setActiveCategoryFilter } = useStore();
+  const { locale, t, setCurrentView, setActiveCategoryFilter, heroSlides } = useStore();
   const [currentSlide, setCurrentSlide] = useState(0);
-  const slides = initialHeroSlides;
+  const slides = heroSlides && heroSlides.length > 0 ? heroSlides : initialHeroSlides;
 
   useEffect(() => {
     const timer = setInterval(() => {

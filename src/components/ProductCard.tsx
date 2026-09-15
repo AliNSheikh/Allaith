@@ -166,9 +166,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           )}
 
           {/* Price Sale Badge */}
-          {priceData.isDiscounted && !isInquireOnly && (
+          {(priceData.isDiscounted || (product.discount_percent && product.discount_percent > 0)) && !isInquireOnly && (
             <span className="inline-block px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-full bg-rose-600 text-white text-[9px] sm:text-[11px] font-black shadow-xs">
-              {isAr ? 'خصم' : 'Sale'}
+              {product.discount_percent ? `-${product.discount_percent}%` : (isAr ? 'خصم' : 'Sale')}
             </span>
           )}
 
