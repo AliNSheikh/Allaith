@@ -4,9 +4,18 @@ import { initialPromotionalOffers } from '../data/initialData';
 import { ArrowRight, ArrowLeft, Flame, Sparkles } from 'lucide-react';
 
 export const PromotionalOffers: React.FC = () => {
-  const { locale, t, setSelectedProductId, setCurrentView } = useStore();
-  const offers = initialPromotionalOffers;
+  const { locale, t, setSelectedProductId, setCurrentView, products } = useStore();
   const isAr = locale === 'ar';
+
+  // Only display offers where the linked product is active and not archived
+  const activeOffers = initialPromotionalOffers.filter((offer) => {
+    const linkedProduct = products.find((p) => p.id === offer.link);
+    // If linked product is archived, hide it
+    if (linkedProduct && linkedProduct.is_archived) return false;
+    return true;
+  });
+
+  if (activeOffers.length === 0) return null;
 
   const handleOfferClick = (productId: string) => {
     setSelectedProductId(productId);
@@ -36,7 +45,7 @@ export const PromotionalOffers: React.FC = () => {
 
         {/* Offers Grid - Strict 2 columns on mobile, 3 columns on desktop */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-6">
-          {offers.map((offer) => (
+          {activeOffers.map((offer) => (
             <div
               key={offer.id}
               onClick={() => handleOfferClick(offer.link)}

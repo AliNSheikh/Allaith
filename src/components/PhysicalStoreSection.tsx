@@ -102,9 +102,6 @@ export const PhysicalStoreSection: React.FC = () => {
 
               {/* Floating Overlay Badge on Map */}
               <div className="absolute bottom-4 left-4 right-4 sm:left-auto sm:right-4 rtl:sm:right-auto rtl:sm:left-4 z-10 bg-white/95 backdrop-blur-md p-3.5 rounded-2xl border border-stone-200 shadow-lg flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center font-black">
-                  ص
-                </div>
                 <div>
                   <p className="text-xs font-bold text-stone-900">
                     {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}

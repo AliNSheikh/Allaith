@@ -31,9 +31,14 @@ async function startServer() {
   // JSON middleware
   app.use(express.json({ limit: '10mb' }));
 
-  // Google-compatible XML Sitemap (https://allaith.vercel.app/sitemap.xml)
+  // Dynamic Google-compatible XML Sitemap (e.g. domain/sitemap.xml)
   app.get('/sitemap.xml', (req, res) => {
-    const baseUrl = 'https://allaith.vercel.app';
+    const host = req.get('host') || 'allaith.vercel.app';
+    const proto = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const domainQuery = (req.query.domain as string) || '';
+    const baseUrl = domainQuery
+      ? (domainQuery.startsWith('http') ? domainQuery : `https://${domainQuery}`)
+      : `${proto}://${host}`;
     const now = new Date().toISOString().split('T')[0];
 
     const defaultSlugs = [
@@ -44,10 +49,14 @@ async function startServer() {
       '/category/tablets',
       '/category/chargers_power',
       '/category/accessories',
-      '/product/iphone-15-pro-max',
-      '/product/samsung-galaxy-s24-ultra',
-      '/product/xiaomi-14-pro',
-      '/product/anker-prime-20000mah'
+      '/maintenance',
+      '/request-phone',
+      '/product/apple-iphone-16-pro-max',
+      '/product/samsung-galaxy-s25-ultra',
+      '/product/apple-macbook-pro-16-m3-max',
+      '/product/xiaomi-redmi-note-13-pro-plus',
+      '/product/apple-ipad-pro-m4-13',
+      '/product/apple-watch-ultra-2'
     ];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -56,7 +65,7 @@ async function startServer() {
         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
 ${defaultSlugs.map(slug => `  <url>
-    <loc>${baseUrl}${slug}</loc>
+    <loc>${baseUrl}${slug ? `#${slug.startsWith('/') ? slug.slice(1) : slug}` : '/'}</loc>
     <lastmod>${now}</lastmod>
     <changefreq>${slug === '' ? 'daily' : 'weekly'}</changefreq>
     <priority>${slug === '' ? '1.0' : slug.startsWith('/product') ? '0.9' : '0.8'}</priority>
@@ -64,7 +73,7 @@ ${defaultSlugs.map(slug => `  <url>
 </urlset>`;
 
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('Cache-Control', 'public, max-age=1800');
     return res.send(xml);
   });
 

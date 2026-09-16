@@ -16,7 +16,9 @@ import {
   X,
   ExternalLink,
   ShieldCheck,
-  Eye
+  Eye,
+  Upload,
+  Camera
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { HeroSlide } from '../../types';
@@ -42,6 +44,7 @@ export const HomepageContentView: React.FC = () => {
   // Slide Modal State
   const [isSlideModalOpen, setIsSlideModalOpen] = useState(false);
   const [editingSlide, setEditingSlide] = useState<HeroSlide | null>(null);
+  const [slideToDelete, setSlideToDelete] = useState<HeroSlide | null>(null);
   const [slideForm, setSlideForm] = useState<{
     title_ar: string;
     title_en: string;
@@ -65,6 +68,25 @@ export const HomepageContentView: React.FC = () => {
     image: '',
     button_link: '#catalog'
   });
+
+  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 8 * 1024 * 1024) {
+      showToast(isAr ? 'حجم الصورة كبير، يفضل اختيار صورة أقل من 8 ميغابايت' : 'Image too large, please select under 8MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setSlideForm((prev) => ({ ...prev, image: reader.result as string }));
+        showToast(isAr ? 'تم رفع وحفظ صورة البانر بنجاح!' : 'Banner photo uploaded successfully!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -199,12 +221,10 @@ export const HomepageContentView: React.FC = () => {
                     type="button"
                     onClick={() => {
                       if (heroSlides.length <= 1) {
-                        alert(isAr ? 'يجب الإبقاء على بانر واحد على الأقل' : 'At least one banner must remain');
+                        showToast(isAr ? 'يجب الإبقاء على بانر واحد على الأقل في المتجر' : 'At least one banner must remain in the store');
                         return;
                       }
-                      if (confirm(isAr ? 'هل تريد حذف هذا البانر؟' : 'Delete this banner?')) {
-                        deleteHeroSlide(slide.id);
-                      }
+                      setSlideToDelete(slide);
                     }}
                     className="p-1.5 rounded-lg bg-stone-800 hover:bg-rose-900 text-rose-400 transition-colors cursor-pointer"
                     title={isAr ? 'حذف البانر' : 'Delete'}
@@ -217,6 +237,46 @@ export const HomepageContentView: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* Banner Slide Deletion Modal */}
+      {slideToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-stone-900">
+                {isAr ? 'تأكيد حذف البانر' : 'Delete Banner?'}
+              </h3>
+              <p className="text-xs text-stone-500 leading-relaxed">
+                {isAr
+                  ? `هل أنت متأكد من رغبتك في حذف البانر "${slideToDelete.title_ar || slideToDelete.title_en}"؟ سيتم حذفه من واجهة المتجر وقاعدة بيانات Supabase.`
+                  : `Are you sure you want to delete banner "${slideToDelete.title_en || slideToDelete.title_ar}"? This will also remove it from Supabase.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setSlideToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 transition-colors cursor-pointer"
+              >
+                {isAr ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteHeroSlide(slideToDelete.id);
+                  setSlideToDelete(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition-colors cursor-pointer"
+              >
+                {isAr ? 'نعم، احذف البانر' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Store Information, Announcement & GPS Map Coordinates Form */}
       <form onSubmit={handleSaveSettings} className="bg-white p-6 rounded-2xl border border-stone-200/80 shadow-xs space-y-6">
@@ -609,18 +669,59 @@ export const HomepageContentView: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  {isAr ? 'رابط صورة الخلفية (High Quality Banner URL) *' : 'Background Image URL *'}
+              {/* Banner Image Upload & URL */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-stone-700">
+                  {isAr ? 'صورة البانر الرئيسية *' : 'Main Banner Image *'}
                 </label>
+
+                {/* Upload Button + File Input */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold hover:bg-emerald-100 transition-colors cursor-pointer shrink-0">
+                    <Upload className="w-4 h-4 text-emerald-600" />
+                    <span>{isAr ? 'رفع صورة من جهازك' : 'Upload Banner Photo'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBannerFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <div className="flex-1 text-[11px] text-stone-500 flex items-center">
+                    <span>{isAr ? 'أو أدخل رابط صورة خارجي (Unsplash / CDN):' : 'Or enter external image URL:'}</span>
+                  </div>
+                </div>
+
                 <input
-                  type="url"
+                  type="text"
                   required
                   value={slideForm.image}
                   onChange={(e) => setSlideForm({ ...slideForm, image: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  placeholder="https://images.unsplash.com/..."
+                  className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  placeholder="https://... أو اختر رفع صورة من جهازك"
                 />
+
+                {/* Image Preview */}
+                {slideForm.image && (
+                  <div className="relative rounded-xl overflow-hidden border border-stone-200 bg-stone-100 aspect-21/9 max-h-40 group">
+                    <img
+                      src={slideForm.image}
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setSlideForm({ ...slideForm, image: '' })}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-rose-700"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{isAr ? 'حذف الصورة' : 'Remove Image'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

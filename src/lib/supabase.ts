@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Product, Category, Order, MaintenanceRequest, StoreSettings, AnalyticsVisitRecord } from '../types';
+import { Product, Category, Order, MaintenanceRequest, StoreSettings, AnalyticsVisitRecord, HeroSlide, PhoneRequest } from '../types';
 
 let cachedClient: SupabaseClient | null = null;
 let currentUrl: string | null = null;
@@ -45,9 +45,6 @@ export interface SupabaseAuthResult {
 
 /**
  * Authenticates admin via Supabase.
- * - If email (contains @), signs in via supabase.auth.signInWithPassword.
- * - If username, queries `store_admins` table or validates credentials.
- * - If Supabase is not yet configured, falls back to local admin verification.
  */
 export async function authenticateAdminWithSupabase(
   identifier: string,
@@ -135,16 +132,432 @@ export async function authenticateAdminWithSupabase(
 export async function testSupabaseConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string }> {
   try {
     const client = createClient(url, anonKey);
-    // Attempt a light ping by querying store_settings or schema
     const { error } = await client.from('store_settings').select('count', { count: 'exact', head: true });
     
-    // Even if table doesn't exist yet, if connection reaches PostgREST without 401/403, credentials are valid!
     if (error && error.code === 'PGRST301') {
       return { success: false, message: 'Invalid JWT / API Key. Please verify your Supabase anon public key.' };
     }
     return { success: true, message: 'Connected successfully to Supabase project!' };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Connection failed' };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: PRODUCTS
+// ========================================================
+
+export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('products')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Could not fetch products from Supabase:', error.message);
+      return null;
+    }
+    return (data || []) as Product[];
+  } catch (e) {
+    console.warn('Error querying products from Supabase:', e);
+    return null;
+  }
+}
+
+export async function upsertProductToSupabase(prod: Product): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('products')
+      .upsert({
+        id: prod.id,
+        title_ar: prod.title_ar,
+        title_en: prod.title_en,
+        slug: prod.slug,
+        description_ar: prod.description_ar,
+        description_en: prod.description_en,
+        category_id: prod.category_id,
+        brand: prod.brand,
+        price: prod.price,
+        price_usd: prod.price_usd,
+        compare_at_price: prod.compare_at_price,
+        compare_at_price_usd: prod.compare_at_price_usd,
+        has_discount: prod.has_discount,
+        discount_percent: prod.discount_percent,
+        condition: prod.condition,
+        condition_details: prod.condition_details,
+        device_type: prod.device_type,
+        images: prod.images,
+        variants: prod.variants,
+        variant_combinations: prod.variant_combinations,
+        specs: prod.specs,
+        stock_quantity: prod.stock_quantity,
+        is_featured: prod.is_featured,
+        is_archived: prod.is_archived ?? false,
+        rating: prod.rating,
+        reviews_count: prod.reviews_count,
+        sku: prod.sku,
+        warranty_ar: prod.warranty_ar,
+        warranty_en: prod.warranty_en,
+        created_at: prod.created_at || new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('Failed to upsert product to Supabase:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception upserting product to Supabase:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function deleteProductFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Failed to delete product from Supabase:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception deleting product from Supabase:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function archiveProductInSupabase(id: string, isArchived: boolean): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('products')
+      .update({ is_archived: isArchived })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Failed to archive product in Supabase:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception archiving product in Supabase:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: CATEGORIES
+// ========================================================
+
+export async function fetchCategoriesFromSupabase(): Promise<Category[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('categories')
+      .select('*')
+      .order('sort_order', { ascending: true });
+
+    if (error) return null;
+    return (data || []) as Category[];
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertCategoryToSupabase(cat: Category): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('categories')
+      .upsert({
+        id: cat.id,
+        name_ar: cat.name_ar,
+        name_en: cat.name_en,
+        slug: cat.slug,
+        image_url: cat.image_url,
+        sort_order: cat.sort_order,
+        is_archived: cat.is_archived ?? false
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function deleteCategoryFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client.from('categories').delete().eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function archiveCategoryInSupabase(id: string, isArchived: boolean): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('categories')
+      .update({ is_archived: isArchived })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Failed to archive category in Supabase:', error);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (e: any) {
+    console.error('Exception archiving category in Supabase:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: HERO SLIDES
+// ========================================================
+
+export async function fetchHeroSlidesFromSupabase(): Promise<HeroSlide[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('hero_slides')
+      .select('*')
+      .order('sort_order', { ascending: true });
+
+    if (error || !data) return null;
+    return data.map((d: any) => ({
+      id: d.id,
+      title_ar: d.title_ar,
+      title_en: d.title_en,
+      subtitle_ar: d.subtitle_ar || '',
+      subtitle_en: d.subtitle_en || '',
+      tag_ar: d.tag_ar || '',
+      tag_en: d.tag_en || '',
+      image: d.image_url || d.image,
+      button_text_ar: d.button_text_ar || 'تصفح الآن',
+      button_text_en: d.button_text_en || 'Shop Now',
+      button_link: d.link || d.button_link || '#catalog'
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertHeroSlideToSupabase(slide: HeroSlide, index = 0): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('hero_slides')
+      .upsert({
+        id: slide.id,
+        title_ar: slide.title_ar,
+        title_en: slide.title_en,
+        subtitle_ar: slide.subtitle_ar,
+        subtitle_en: slide.subtitle_en,
+        tag_ar: slide.tag_ar,
+        tag_en: slide.tag_en,
+        image_url: slide.image,
+        link: slide.button_link,
+        sort_order: index,
+        is_active: true
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function deleteHeroSlideFromSupabase(id: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client.from('hero_slides').delete().eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: STORE SETTINGS
+// ========================================================
+
+export async function fetchSettingsFromSupabase(): Promise<Partial<StoreSettings> | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('store_settings')
+      .select('*')
+      .eq('id', 'default')
+      .single();
+
+    if (error || !data) return null;
+    return {
+      site_name_ar: data.site_name_ar,
+      site_name_en: data.site_name_en,
+      custom_logo_url: data.custom_logo_url || data.logo_url,
+      whatsapp_number: data.whatsapp_number,
+      maintenance_whatsapp: data.maintenance_whatsapp,
+      usd_exchange_rate: Number(data.usd_exchange_rate) || 15000,
+      store_address_ar: data.store_address_ar,
+      store_address_en: data.store_address_en,
+      store_phone: data.store_phone,
+      store_email: data.store_email,
+      store_lat: Number(data.store_lat) || 35.524917,
+      store_lng: Number(data.store_lng) || 35.852556
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertSettingsToSupabase(settings: StoreSettings): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('store_settings')
+      .upsert({
+        id: 'default',
+        site_name_ar: settings.site_name_ar,
+        site_name_en: settings.site_name_en,
+        logo_url: settings.custom_logo_url || settings.logo_url,
+        custom_logo_url: settings.custom_logo_url,
+        whatsapp_number: settings.whatsapp_number,
+        maintenance_whatsapp: settings.maintenance_whatsapp,
+        usd_exchange_rate: settings.usd_exchange_rate,
+        store_address_ar: settings.store_address_ar,
+        store_address_en: settings.store_address_en,
+        store_phone: settings.store_phone,
+        store_email: settings.store_email,
+        store_lat: settings.store_lat,
+        store_lng: settings.store_lng,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// FULL STORE CATALOG SEED & SYNC
+// ========================================================
+
+export async function syncEntireCatalogToSupabase(
+  products: Product[],
+  categories: Category[],
+  heroSlides: HeroSlide[],
+  settings: StoreSettings
+): Promise<{ success: boolean; message: string; count?: number }> {
+  const client = getSupabaseClient();
+  if (!client) {
+    return { success: false, message: 'Supabase is not configured yet. Please enter project URL & anon key.' };
+  }
+
+  try {
+    // 1. Settings
+    await upsertSettingsToSupabase(settings);
+
+    // 2. Categories
+    for (const cat of categories) {
+      await upsertCategoryToSupabase(cat);
+    }
+
+    // 3. Products
+    for (const prod of products) {
+      await upsertProductToSupabase(prod);
+    }
+
+    // 4. Hero Slides
+    for (let i = 0; i < heroSlides.length; i++) {
+      await upsertHeroSlideToSupabase(heroSlides[i], i);
+    }
+
+    return {
+      success: true,
+      message: `تم مزامنة ${products.length} منتجاً و ${categories.length} قسماً و ${heroSlides.length} بانرات مع Supabase بنجاح!`,
+      count: products.length
+    };
+  } catch (e: any) {
+    return { success: false, message: e?.message || 'Sync failed' };
+  }
+}
+
+// ========================================================
+// REALTIME SUBSCRIPTION FOR LIVE STOREFRONT UPDATES
+// ========================================================
+
+export function subscribeToStoreSync(
+  onTableChange: (table: string, eventType: string, payload: any) => void
+): () => void {
+  const client = getSupabaseClient();
+  if (!client) return () => {};
+
+  try {
+    const channel = client
+      .channel('store-sync-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
+        onTableChange('products', payload.eventType, payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, (payload) => {
+        onTableChange('categories', payload.eventType, payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hero_slides' }, (payload) => {
+        onTableChange('hero_slides', payload.eventType, payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
+        onTableChange('store_settings', payload.eventType, payload);
+      })
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  } catch (e) {
+    console.warn('Realtime subscription not supported or error:', e);
+    return () => {};
   }
 }
 

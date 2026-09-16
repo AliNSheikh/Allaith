@@ -11,7 +11,9 @@ import {
   Radio,
   Sparkles,
   BarChart,
-  Megaphone
+  Megaphone,
+  Link as LinkIcon,
+  CheckCircle2
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 
@@ -38,8 +40,12 @@ export const GoogleSeoView: React.FC = () => {
   });
 
   const [isCopiedSitemap, setIsCopiedSitemap] = useState(false);
+  const [isCopiedSitemapUrl, setIsCopiedSitemapUrl] = useState(false);
   const [isCopiedRobots, setIsCopiedRobots] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+
+  const effectiveDomain = (formSettings.site_domain || (typeof window !== 'undefined' ? window.location.origin : 'https://allaith.vercel.app')).replace(/\/+$/, '');
+  const sitemapLiveUrl = `${effectiveDomain}/sitemap.xml`;
 
   const xmlSitemap = generateSitemapXml();
   const robotsTxt = generateRobotsTxt();
@@ -54,8 +60,15 @@ export const GoogleSeoView: React.FC = () => {
   const handleCopySitemap = () => {
     navigator.clipboard.writeText(xmlSitemap);
     setIsCopiedSitemap(true);
-    showToast(isAr ? 'تم نسخ ملف خريطة الموقع XML!' : 'Sitemap XML copied to clipboard!');
+    showToast(isAr ? 'تم نسخ محتوى خريطة الموقع XML!' : 'Sitemap XML copied to clipboard!');
     setTimeout(() => setIsCopiedSitemap(false), 2000);
+  };
+
+  const handleCopySitemapUrl = () => {
+    navigator.clipboard.writeText(sitemapLiveUrl);
+    setIsCopiedSitemapUrl(true);
+    showToast(isAr ? 'تم نسخ رابط sitemap.xml المباشر!' : 'Sitemap URL copied to clipboard!');
+    setTimeout(() => setIsCopiedSitemapUrl(false), 2000);
   };
 
   const handleDownloadSitemap = () => {
@@ -98,6 +111,57 @@ export const GoogleSeoView: React.FC = () => {
             <Radio className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
             <span>Google Ecosystem Ready</span>
           </span>
+        </div>
+      </div>
+
+      {/* Dedicated Live Sitemap Link Box (Requested by User) */}
+      <div className="bg-emerald-900 text-white p-5 sm:p-6 rounded-2xl border border-emerald-800 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-800 text-emerald-300">
+              <LinkIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-white">
+                {isAr ? 'رابط ملف خريطة الموقع المباشر (Google XML Sitemap Link)' : 'Direct Live XML Sitemap Link'}
+              </h3>
+              <p className="text-xs text-emerald-200">
+                {isAr ? 'انسخ هذا الرابط وأدخله مباشرة في Google Search Console لأرشفة المتجر' : 'Submit this exact link to Google Search Console to index the store'}
+              </p>
+            </div>
+          </div>
+
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-800/80 border border-emerald-700 text-xs font-bold text-emerald-200 shrink-0">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{isAr ? 'رابط نشط ومتوافق مع Google' : 'Active & Google-compliant'}</span>
+          </span>
+        </div>
+
+        {/* URL Bar & Copy / Open Controls */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+          <div className="flex-1 flex items-center px-3.5 py-2.5 bg-stone-950/90 rounded-xl border border-emerald-700/60 font-mono text-xs text-emerald-300 font-bold overflow-x-auto select-all shadow-inner">
+            <Globe className="w-4 h-4 text-emerald-400 mr-2 rtl:ml-2 rtl:mr-0 shrink-0" />
+            <span className="truncate">{sitemapLiveUrl}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCopySitemapUrl}
+            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-stone-950 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-sm"
+          >
+            {isCopiedSitemapUrl ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <span>{isCopiedSitemapUrl ? (isAr ? 'تم نسخ الرابط!' : 'Copied Link!') : (isAr ? 'نسخ رابط Sitemap' : 'Copy Sitemap URL')}</span>
+          </button>
+
+          <a
+            href="/sitemap.xml"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0 border border-white/15"
+          >
+            <ExternalLink className="w-4 h-4" />
+            <span>{isAr ? 'فتح في نافذة جديدة' : 'Open XML in New Tab'}</span>
+          </a>
         </div>
       </div>
 

@@ -48,6 +48,7 @@ export const CategoriesBrandsView: React.FC = () => {
 
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isSavingGlobal, setIsSavingGlobal] = useState(false);
   const [archiveFilter, setArchiveFilter] = useState<'all' | 'active' | 'archived'>('active');
 
@@ -339,11 +340,7 @@ export const CategoriesBrandsView: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm(isAr ? `حذف فئة ${cat.name_ar}؟` : `Delete ${cat.name_en}?`)) {
-                        deleteCategory(cat.id);
-                      }
-                    }}
+                    onClick={() => setCategoryToDelete(cat)}
                     className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     title={isAr ? 'حذف' : 'Delete'}
                   >
@@ -355,6 +352,46 @@ export const CategoriesBrandsView: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Category Deletion Confirmation Modal */}
+      {categoryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-stone-900">
+                {isAr ? 'تأكيد حذف الفئة نهائياً' : 'Delete Category Permanently'}
+              </h3>
+              <p className="text-xs text-stone-500 leading-relaxed">
+                {isAr
+                  ? `هل أنت متأكد من حذف قسم "${categoryToDelete.name_ar}"؟ سيتم حذفه من متجر الليث وقاعدة بيانات Supabase.`
+                  : `Are you sure you want to delete category "${categoryToDelete.name_en}"? It will also be removed from Supabase.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCategoryToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 transition-colors cursor-pointer"
+              >
+                {isAr ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteCategory(categoryToDelete.id);
+                  setCategoryToDelete(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition-colors cursor-pointer"
+              >
+                {isAr ? 'نعم، احذف الفئة' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Brands Section */}
       <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs space-y-4">

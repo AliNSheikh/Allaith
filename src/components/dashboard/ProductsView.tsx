@@ -72,6 +72,7 @@ export const ProductsView: React.FC = () => {
   // Product Add / Edit Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<{
@@ -895,11 +896,7 @@ export const ProductsView: React.FC = () => {
                           {/* Delete */}
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm(isAr ? `هل تريد حذف ${prod.title_ar} نهائياً؟` : `Delete ${prod.title_en}?`)) {
-                                deleteProduct(prod.id);
-                              }
-                            }}
+                            onClick={() => setProductToDelete(prod)}
                             title={isAr ? 'حذف المنتج نهائياً' : 'Delete'}
                             className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           >
@@ -915,6 +912,46 @@ export const ProductsView: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Delete Product Confirmation Modal - Works 100% reliably in iFrames and Mobile */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 p-6 space-y-5">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-black text-stone-900">
+                {isAr ? 'تأكيد حذف المنتج نهائياً' : 'Delete Product Permanently'}
+              </h3>
+              <p className="text-xs text-stone-500 leading-relaxed">
+                {isAr
+                  ? `هل أنت متأكد من رغبتك في حذف "${productToDelete.title_ar}" نهائياً من المتجر؟ سيتم حذفه من قاعدة البيانات المتزامنة Supabase أيضاً.`
+                  : `Are you sure you want to permanently delete "${productToDelete.title_en}"? This will also remove it from Supabase.`}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setProductToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-stone-200 text-stone-700 text-xs font-bold hover:bg-stone-50 transition-colors cursor-pointer"
+              >
+                {isAr ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteProduct(productToDelete.id);
+                  setProductToDelete(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-xs transition-colors cursor-pointer"
+              >
+                {isAr ? 'نعم، احذف المنتج' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add / Edit Product Modal */}
       {isModalOpen && (

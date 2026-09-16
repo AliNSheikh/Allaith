@@ -80,14 +80,9 @@ export const Footer: React.FC = () => {
                   className="h-10 w-auto max-w-[180px] object-contain"
                 />
               ) : (
-                <>
-                  <div className="w-9 h-9 rounded-xl bg-white text-stone-900 flex items-center justify-center font-black text-lg">
-                    ل
-                  </div>
-                  <span className="text-xl font-black text-white tracking-tight">
-                    {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
-                  </span>
-                </>
+                <span className="text-xl font-black text-white tracking-tight">
+                  {isAr ? storeSettings.site_name_ar : storeSettings.site_name_en}
+                </span>
               )}
             </div>
 

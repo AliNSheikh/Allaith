@@ -31,11 +31,17 @@ export const ProductDetailPage: React.FC = () => {
     formatProductPrice,
     getWhatsAppProductUrl,
     getWhatsAppPriceInquiryUrl,
-    showToast
+    showToast,
+    isAdmin
   } = useStore();
 
+  const isAr = locale === 'ar';
+  const targetProduct = products.find((p) => p.id === selectedProductId);
   const activeProducts = products.filter((p) => !p.is_archived);
-  const product = products.find((p) => p.id === selectedProductId && !p.is_archived) || activeProducts[0];
+
+  // If target product is archived and user is NOT admin, do not display it
+  const isArchivedAndHidden = targetProduct && targetProduct.is_archived && !isAdmin;
+  const product = isArchivedAndHidden ? null : (targetProduct || activeProducts[0]);
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariants, setSelectedVariants] = useState<{ [variantName: string]: string }>(() => {
@@ -55,6 +61,31 @@ export const ProductDetailPage: React.FC = () => {
   // Accordion tabs state
   const [openTab, setOpenTab] = useState<'specs' | 'warranty' | 'delivery' | 'return'>('specs');
 
+  if (isArchivedAndHidden) {
+    return (
+      <div className="py-20 text-center max-w-md mx-auto px-4">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center mx-auto mb-4 font-bold text-2xl">
+          📦
+        </div>
+        <h2 className="text-xl font-black text-stone-900 mb-2">
+          {isAr ? 'هذا المنتج تمت أرشفته' : 'Product is Archived'}
+        </h2>
+        <p className="text-sm text-stone-500 mb-6 leading-relaxed">
+          {isAr
+            ? 'هذا المنتج غير معروض حالياً في المتجر نظراً لنفاد الكمية أو أرشفته من قبل الإدارة.'
+            : 'This item is archived and no longer available in the public catalog.'}
+        </p>
+        <button
+          type="button"
+          onClick={() => setCurrentView('catalog')}
+          className="px-6 py-2.5 bg-stone-900 text-white rounded-xl text-xs font-bold hover:bg-stone-800 transition-colors cursor-pointer"
+        >
+          {isAr ? 'العودة إلى كافة المنتجات' : 'Return to Catalog'}
+        </button>
+      </div>
+    );
+  }
+
   if (!product) {
     return (
       <div className="py-16 text-center text-stone-500">
@@ -70,7 +101,6 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const isAr = locale === 'ar';
   const title = isAr ? product.title_ar : product.title_en;
   const description = isAr ? product.description_ar : product.description_en;
   const inWishlist = isInWishlist(product.id);
@@ -162,6 +192,27 @@ export const ProductDetailPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Admin Notice if Product is Archived */}
+        {product.is_archived && isAdmin && (
+          <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2 font-bold">
+              <span className="text-base">⚠️</span>
+              <span>
+                {isAr
+                  ? 'تنبيه الإدارة: هذا المنتج مؤرشف ومخفي عن زوار المتجر، يظهر هنا لك فقط بصفتك مسؤولاً للمعاينة والتحقق.'
+                  : 'Admin Notice: This product is archived and completely hidden from public store visitors (preview mode).'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCurrentView('dashboard')}
+              className="px-3 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-950 font-black shrink-0 transition-colors cursor-pointer"
+            >
+              {isAr ? 'لوحة التحكم' : 'Dashboard'}
+            </button>
+          </div>
+        )}
 
         {/* Main PDP Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-14">
