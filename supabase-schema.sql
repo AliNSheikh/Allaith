@@ -36,9 +36,11 @@ CREATE TABLE IF NOT EXISTS public.store_admins (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- إدراج حساب المدير الافتراضي
+-- إدراج حسابات المدراء الافتراضية
 INSERT INTO public.store_admins (id, username, email, password, full_name, role)
-VALUES ('adm_master', 'admin', 'admin@allaith.sy', 'laith2026', 'المدير العام', 'super_admin')
+VALUES 
+    ('adm_master', 'admin', 'admin@allaith.sy', 'laith2026', 'المدير العام', 'super_admin'),
+    ('adm_owner', 'ali', 'alinsheikh1998@gmail.com', 'laith2026', 'علي الشيخ - المدير العام', 'super_admin')
 ON CONFLICT (username) DO UPDATE SET 
     password = EXCLUDED.password,
     role = EXCLUDED.role;

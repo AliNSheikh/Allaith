@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from './ProductCard';
+import { ProductGridSkeleton } from './LoadingSkeletons';
 import { ArrowRight, ArrowLeft, Layers } from 'lucide-react';
 
 export const FeaturedCollections: React.FC = () => {
@@ -10,7 +11,8 @@ export const FeaturedCollections: React.FC = () => {
     products,
     categories,
     setCurrentView,
-    setActiveCategoryFilter
+    setActiveCategoryFilter,
+    isDataLoading
   } = useStore();
 
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -85,11 +87,15 @@ export const FeaturedCollections: React.FC = () => {
         </div>
 
         {/* Product Grid - Strict 2 columns on mobile */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
-          {displayedProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {isDataLoading ? (
+          <ProductGridSkeleton count={8} />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-6">
+            {displayedProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        )}
 
         {/* Pagination / View All / Explore Action */}
         <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-3">

@@ -1,6 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Product, Category, Order, MaintenanceRequest, StoreSettings, AnalyticsVisitRecord, HeroSlide, PhoneRequest } from '../types';
 
+export const DEFAULT_SUPABASE_URL = 'https://gvulciiuobldobtixlyl.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2dWxjaWl1b2JsZG9idGl4bHlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1NTI4NTYsImV4cCI6MjEwNTEyODg1Nn0.SNeN-JPJH1_qd2yVltll3voPAnXieq0qes7KU3bVFsI';
+
 let cachedClient: SupabaseClient | null = null;
 let currentUrl: string | null = null;
 let currentKey: string | null = null;
@@ -9,8 +12,8 @@ export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClien
   const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
   const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
-  const targetUrl = url || envUrl || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_url') : null);
-  const targetKey = anonKey || envKey || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_key') : null);
+  const targetUrl = url || envUrl || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_url') : null) || DEFAULT_SUPABASE_URL;
+  const targetKey = anonKey || envKey || (typeof window !== 'undefined' ? localStorage.getItem('laith_supabase_key') : null) || DEFAULT_SUPABASE_ANON_KEY;
 
   if (!targetUrl || !targetKey) {
     return null;
@@ -36,6 +39,10 @@ export function getSupabaseClient(url?: string, anonKey?: string): SupabaseClien
   }
 }
 
+export function isSupabaseConfigured(url?: string, anonKey?: string): boolean {
+  return !!getSupabaseClient(url, anonKey);
+}
+
 export interface SupabaseAuthResult {
   success: boolean;
   user?: any;
@@ -44,7 +51,46 @@ export interface SupabaseAuthResult {
 }
 
 /**
- * Authenticates admin via Supabase.
+ * Ensures the administrator user exists in the Supabase database store_admins table
+ */
+export async function ensureDefaultDatabaseAdmin(clientParam?: SupabaseClient | null): Promise<void> {
+  const client = clientParam || getSupabaseClient();
+  if (!client) return;
+
+  try {
+    const { data, error } = await client
+      .from('store_admins')
+      .select('id')
+      .or('email.eq.alinsheikh1998@gmail.com,username.eq.admin')
+      .limit(1);
+
+    if (!error && (!data || data.length === 0)) {
+      await client.from('store_admins').upsert([
+        {
+          id: 'adm_master',
+          username: 'admin',
+          email: 'admin@allaith.sy',
+          password: 'laith2026',
+          full_name: 'المدير العام',
+          role: 'super_admin'
+        },
+        {
+          id: 'adm_owner',
+          username: 'ali',
+          email: 'alinsheikh1998@gmail.com',
+          password: 'laith2026',
+          full_name: 'علي الشيخ - المدير العام',
+          role: 'super_admin'
+        }
+      ], { onConflict: 'username' });
+    }
+  } catch {
+    // Non-blocking if table not yet migrated
+  }
+}
+
+/**
+ * Authenticates admin via Supabase (Supabase Auth and database store_admins table).
  */
 export async function authenticateAdminWithSupabase(
   identifier: string,
@@ -62,86 +108,98 @@ export async function authenticateAdminWithSupabase(
 
   if (client) {
     try {
+      // 1. If identifier is an email, attempt Supabase Auth first
       if (trimmedId.includes('@')) {
-        const { data, error } = await client.auth.signInWithPassword({
+        const { data: authData, error: authError } = await client.auth.signInWithPassword({
           email: trimmedId,
           password: trimmedPass
         });
 
-        if (error) {
+        if (!authError && authData?.user) {
           return {
-            success: false,
-            error: error.message || 'بيانات الدخول غير صحيحة عبر Supabase',
+            success: true,
+            user: authData.user,
             source: 'supabase_auth'
           };
+        }
+      }
+
+      // 2. Query store_admins table in the Supabase database
+      const { data: tableUser, error: tableError } = await client
+        .from('store_admins')
+        .select('*')
+        .or(`email.eq.${trimmedId},username.eq.${trimmedId}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (!tableError && tableUser) {
+        if (tableUser.password === trimmedPass || tableUser.password_hash === trimmedPass) {
+          // Update last_login in Supabase database
+          await client.from('store_admins').update({ last_login: new Date().toISOString() }).eq('id', tableUser.id);
+          return {
+            success: true,
+            user: tableUser,
+            source: 'supabase_table'
+          };
+        } else {
+          return {
+            success: false,
+            error: 'كلمة المرور غير صحيحة لحساب الإدارة في Supabase',
+            source: 'supabase_table'
+          };
+        }
+      }
+
+      // 3. Fallback check for designated admin credentials with auto-upsert to DB
+      if (
+        (trimmedId === 'alinsheikh1998@gmail.com' || trimmedId === 'admin' || trimmedId === 'ali') &&
+        (trimmedPass === 'laith2026' || trimmedPass === (options?.fallbackPassword || 'laith2026'))
+      ) {
+        try {
+          await client.from('store_admins').upsert([
+            {
+              id: 'adm_owner',
+              username: trimmedId === 'admin' ? 'admin' : 'ali',
+              email: 'alinsheikh1998@gmail.com',
+              password: trimmedPass,
+              full_name: 'علي الشيخ - المدير العام',
+              role: 'super_admin'
+            }
+          ], { onConflict: 'username' });
+        } catch {
+          // Non-blocking
         }
 
         return {
           success: true,
-          user: data.user,
-          source: 'supabase_auth'
+          user: { email: 'alinsheikh1998@gmail.com', username: trimmedId, role: 'super_admin' },
+          source: 'supabase_table'
         };
-      } else {
-        // Look up by username in store_admins
-        const { data, error } = await client
-          .from('store_admins')
-          .select('*')
-          .eq('username', trimmedId)
-          .single();
-
-        if (!error && data) {
-          if (data.password === trimmedPass || data.password_hash === trimmedPass) {
-            return {
-              success: true,
-              user: data,
-              source: 'supabase_table'
-            };
-          } else {
-            return {
-              success: false,
-              error: 'كلمة المرور غير صحيحة لحساب الإدارة في Supabase',
-              source: 'supabase_table'
-            };
-          }
-        }
       }
     } catch (err: any) {
       console.warn('Supabase authentication check warning:', err);
     }
   }
 
-  // Local fallback when Supabase is not connected
+  // Local fallback
   const validUser = (options?.fallbackUsername || 'admin').trim();
   const validPass = (options?.fallbackPassword || 'laith2026').trim();
 
-  if (trimmedId === validUser && trimmedPass === validPass) {
+  if ((trimmedId === validUser || trimmedId === 'alinsheikh1998@gmail.com') && trimmedPass === validPass) {
     return {
       success: true,
-      user: { username: validUser, role: 'master_admin' },
+      user: { username: validUser, email: 'alinsheikh1998@gmail.com', role: 'super_admin' },
       source: 'local_fallback'
     };
   }
 
   return {
     success: false,
-    error: 'بيانات تسجيل الدخول غير صحيحة',
-    source: client ? 'supabase_auth' : 'local_fallback'
+    error: 'بيانات تسجيل الدخول غير صحيحة في قاعدة البيانات Supabase',
+    source: client ? 'supabase_table' : 'local_fallback'
   };
 }
 
-export async function testSupabaseConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string }> {
-  try {
-    const client = createClient(url, anonKey);
-    const { error } = await client.from('store_settings').select('count', { count: 'exact', head: true });
-    
-    if (error && error.code === 'PGRST301') {
-      return { success: false, message: 'Invalid JWT / API Key. Please verify your Supabase anon public key.' };
-    }
-    return { success: true, message: 'Connected successfully to Supabase project!' };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Connection failed' };
-  }
-}
 
 // ========================================================
 // SYNCHRONIZATION HELPERS: PRODUCTS
@@ -517,11 +575,198 @@ export async function syncEntireCatalogToSupabase(
 
     return {
       success: true,
-      message: `تم مزامنة ${products.length} منتجاً و ${categories.length} قسماً و ${heroSlides.length} بانرات مع Supabase بنجاح!`,
+      message: `تمت مزامنة ${products.length} منتجاً و ${categories.length} قسماً و ${heroSlides.length} بانرات مع Supabase بنجاح!`,
       count: products.length
     };
   } catch (e: any) {
     return { success: false, message: e?.message || 'Sync failed' };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: ORDERS
+// ========================================================
+
+export async function fetchOrdersFromSupabase(): Promise<any[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertOrderToSupabase(order: any): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('orders')
+      .upsert({
+        id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        governorate: order.governorate,
+        delivery_address: order.delivery_address,
+        notes: order.notes,
+        items: order.items,
+        subtotal: order.subtotal,
+        delivery_fee: order.delivery_fee,
+        total: order.total,
+        currency: order.currency || 'SYP',
+        status: order.status || 'new',
+        google_sheets_synced: order.google_sheets_synced || false,
+        created_at: order.created_at || new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function updateOrderStatusInSupabase(orderId: string, status: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('orders')
+      .update({ status })
+      .eq('id', orderId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: MAINTENANCE REQUESTS
+// ========================================================
+
+export async function fetchMaintenanceRequestsFromSupabase(): Promise<any[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('maintenance_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertMaintenanceRequestToSupabase(req: any): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('maintenance_requests')
+      .upsert({
+        id: req.id,
+        request_number: req.request_number,
+        customer_name: req.customer_name,
+        phone: req.phone,
+        device_type: req.device_type,
+        device_model: req.device_model,
+        issue_description: req.issue_description,
+        photo_url: req.photo_url,
+        preferred_date: req.preferred_date,
+        status: req.status || 'new',
+        notes_admin: req.notes_admin,
+        created_at: req.created_at || new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+export async function updateMaintenanceStatusInSupabase(requestId: string, status: string): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('maintenance_requests')
+      .update({ status })
+      .eq('id', requestId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
+  }
+}
+
+// ========================================================
+// SYNCHRONIZATION HELPERS: PHONE SOURCING REQUESTS
+// ========================================================
+
+export async function fetchPhoneRequestsFromSupabase(): Promise<any[] | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('phone_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error || !data) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function upsertPhoneRequestToSupabase(req: any): Promise<{ success: boolean; error?: string }> {
+  const client = getSupabaseClient();
+  if (!client) return { success: false, error: 'Supabase client not connected' };
+
+  try {
+    const { error } = await client
+      .from('phone_requests')
+      .upsert({
+        id: req.id,
+        request_number: req.request_number,
+        customer_name: req.customer_name,
+        phone: req.phone,
+        brand: req.brand,
+        model: req.model,
+        color: req.color,
+        storage: req.storage,
+        budget_range: req.budget_range,
+        status: req.status || 'pending',
+        notes_admin: req.notes_admin,
+        created_at: req.created_at || new Date().toISOString()
+      }, { onConflict: 'id' });
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message };
   }
 }
 
@@ -550,6 +795,15 @@ export function subscribeToStoreSync(
       .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
         onTableChange('store_settings', payload.eventType, payload);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        onTableChange('orders', payload.eventType, payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance_requests' }, (payload) => {
+        onTableChange('maintenance_requests', payload.eventType, payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'phone_requests' }, (payload) => {
+        onTableChange('phone_requests', payload.eventType, payload);
+      })
       .subscribe();
 
     return () => {
@@ -574,7 +828,30 @@ export const SUPABASE_SQL_SCHEMA = `-- =========================================
 -- 1. Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 2. Store Settings Table
+-- 2. Store Administrators Table (Authentication via Supabase Database)
+CREATE TABLE IF NOT EXISTS public.store_admins (
+    id TEXT PRIMARY KEY DEFAULT ('adm_' || substr(md5(random()::text), 1, 8)),
+    username TEXT NOT NULL UNIQUE,
+    email TEXT UNIQUE,
+    password TEXT NOT NULL,
+    password_hash TEXT,
+    full_name TEXT NOT NULL DEFAULT 'مدير متجر الليث',
+    role TEXT NOT NULL DEFAULT 'super_admin',
+    is_active BOOLEAN DEFAULT true,
+    last_login TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Seed Designated Master Admin User
+INSERT INTO public.store_admins (id, username, email, password, full_name, role)
+VALUES 
+    ('adm_master', 'admin', 'admin@allaith.sy', 'laith2026', 'المدير العام', 'super_admin'),
+    ('adm_owner', 'ali', 'alinsheikh1998@gmail.com', 'laith2026', 'علي الشيخ - المدير العام', 'super_admin')
+ON CONFLICT (username) DO UPDATE SET 
+    password = EXCLUDED.password,
+    role = EXCLUDED.role;
+
+-- 3. Store Settings Table
 CREATE TABLE IF NOT EXISTS public.store_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     site_name_ar TEXT NOT NULL DEFAULT 'الليث للاتصالات',
@@ -687,7 +964,39 @@ CREATE TABLE IF NOT EXISTS public.analytics_visits (
     duration_seconds INT DEFAULT 0
 );
 
--- 8. Indexes for Instant Performance
+-- 8. Hero Slides Table (Dynamic Homepage Carousel)
+CREATE TABLE IF NOT EXISTS public.hero_slides (
+    id TEXT PRIMARY KEY,
+    title_ar TEXT NOT NULL,
+    title_en TEXT NOT NULL,
+    subtitle_ar TEXT,
+    subtitle_en TEXT,
+    tag_ar TEXT,
+    tag_en TEXT,
+    image_url TEXT NOT NULL,
+    link TEXT DEFAULT '#catalog',
+    sort_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 9. Custom Phone Sourcing Requests
+CREATE TABLE IF NOT EXISTS public.phone_requests (
+    id TEXT PRIMARY KEY,
+    request_number TEXT NOT NULL UNIQUE,
+    customer_name TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    brand TEXT NOT NULL,
+    model TEXT NOT NULL,
+    color TEXT,
+    storage TEXT,
+    budget_range TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    notes_admin TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- 10. Indexes for Instant Performance
 CREATE INDEX IF NOT EXISTS idx_products_slug ON public.products(slug);
 CREATE INDEX IF NOT EXISTS idx_categories_slug ON public.categories(slug);
 CREATE INDEX IF NOT EXISTS idx_products_category ON public.products(category_id);
@@ -695,15 +1004,22 @@ CREATE INDEX IF NOT EXISTS idx_products_archived ON public.products(is_archived)
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON public.orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_maintenance_status ON public.maintenance_requests(status);
+CREATE INDEX IF NOT EXISTS idx_hero_slides_sort ON public.hero_slides(sort_order);
 CREATE INDEX IF NOT EXISTS idx_analytics_timestamp ON public.analytics_visits(timestamp);
 
--- 9. Row Level Security (Public Read, Admin Full Access)
+-- 11. Row Level Security (Public Read, Admin Full Access)
+ALTER TABLE public.store_admins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.maintenance_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.hero_slides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.phone_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.analytics_visits ENABLE ROW LEVEL SECURITY;
+
+-- Allow access with anon key for store_admins table
+CREATE POLICY "Full access with anon key for store_admins" ON public.store_admins FOR ALL USING (true);
 
 -- Allow public read of unarchived products
 CREATE POLICY "Public can view unarchived products" ON public.products
@@ -713,15 +1029,22 @@ CREATE POLICY "Public can view unarchived products" ON public.products
 CREATE POLICY "Public can view unarchived categories" ON public.categories
     FOR SELECT USING (is_archived = false);
 
+-- Allow public read of hero slides
+CREATE POLICY "Public can view hero slides" ON public.hero_slides
+    FOR SELECT USING (true);
+
 -- Allow public read of store settings
 CREATE POLICY "Public can view settings" ON public.store_settings
     FOR SELECT USING (true);
 
--- Allow public to insert orders and maintenance requests
+-- Allow public to insert orders, maintenance and phone requests
 CREATE POLICY "Public can create orders" ON public.orders
     FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Public can create maintenance requests" ON public.maintenance_requests
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Public can create phone requests" ON public.phone_requests
     FOR INSERT WITH CHECK (true);
 
 CREATE POLICY "Public can record visits" ON public.analytics_visits
@@ -733,5 +1056,29 @@ CREATE POLICY "Full access with anon key for categories" ON public.categories FO
 CREATE POLICY "Full access with anon key for settings" ON public.store_settings FOR ALL USING (true);
 CREATE POLICY "Full access with anon key for orders" ON public.orders FOR ALL USING (true);
 CREATE POLICY "Full access with anon key for maintenance" ON public.maintenance_requests FOR ALL USING (true);
+CREATE POLICY "Full access with anon key for hero_slides" ON public.hero_slides FOR ALL USING (true);
+CREATE POLICY "Full access with anon key for phone_requests" ON public.phone_requests FOR ALL USING (true);
 CREATE POLICY "Full access with anon key for analytics" ON public.analytics_visits FOR ALL USING (true);
 `;
+
+/**
+ * Validates connection to Supabase instance
+ */
+export async function testSupabaseConnection(url?: string, anonKey?: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const client = getSupabaseClient(url, anonKey);
+    if (!client) {
+      return { success: false, message: 'Missing URL or Anon Key' };
+    }
+    const { error } = await client.from('store_settings').select('id').limit(1);
+    if (error) {
+      if (error.code === 'PGRST116' || error.message.includes('relation') || error.message.includes('does not exist')) {
+        return { success: true, message: 'الاتصال ناجح! يرجى تشغيل كود SQL لإنشاء الجداول.' };
+      }
+      return { success: false, message: error.message };
+    }
+    return { success: true, message: 'الاتصال بقاعدة بيانات Supabase مستقر وناجح!' };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Connection test failed' };
+  }
+}

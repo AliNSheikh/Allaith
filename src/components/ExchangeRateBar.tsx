@@ -8,20 +8,24 @@ import {
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 
+import { DEFAULT_FALLBACK_RATE } from '../utils/exchangeRateClient';
+
 export const ExchangeRateBar: React.FC = () => {
   const {
     locale,
-    exchangeRateData,
+    exchangeRateData: storeRateData,
     isExchangeRateLoading,
     refreshExchangeRate,
     setIsExchangeModalOpen,
     liraDisplayMode
   } = useStore();
 
-  if (!exchangeRateData) return null;
-
+  const exchangeRateData = storeRateData || DEFAULT_FALLBACK_RATE;
   const isAr = locale === 'ar';
-  const isPositive = exchangeRateData.change_percent >= 0;
+  const isPositive = (exchangeRateData.change_percent ?? 0) >= 0;
+
+  const newLiraSell = exchangeRateData.new_lira?.sell ?? 134.25;
+  const oldLiraSell = exchangeRateData.old_lira?.sell ?? 13425;
 
   return (
     <div
@@ -56,7 +60,7 @@ export const ExchangeRateBar: React.FC = () => {
                 {isAr ? 'الجديدة:' : 'New:'}
               </span>
               <span className="font-mono font-bold text-white">
-                {exchangeRateData.new_lira.sell.toLocaleString()}
+                {newLiraSell.toLocaleString()}
               </span>
               <span className="text-[10px] text-emerald-300/80">
                 {isAr ? 'ل.س' : 'SYP'}
@@ -69,7 +73,7 @@ export const ExchangeRateBar: React.FC = () => {
                 {isAr ? 'القديمة:' : 'Old:'}
               </span>
               <span className="font-mono font-bold text-white">
-                {exchangeRateData.old_lira.sell.toLocaleString()}
+                {oldLiraSell.toLocaleString()}
               </span>
               <span className="text-[10px] text-slate-400">
                 {isAr ? 'ل.س' : 'SYP'}

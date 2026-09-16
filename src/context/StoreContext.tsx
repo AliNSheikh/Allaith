@@ -33,7 +33,16 @@ import {
   deleteHeroSlideFromSupabase,
   fetchSettingsFromSupabase,
   upsertSettingsToSupabase,
-  subscribeToStoreSync
+  fetchOrdersFromSupabase,
+  upsertOrderToSupabase,
+  updateOrderStatusInSupabase,
+  fetchMaintenanceRequestsFromSupabase,
+  upsertMaintenanceRequestToSupabase,
+  updateMaintenanceStatusInSupabase,
+  fetchPhoneRequestsFromSupabase,
+  upsertPhoneRequestToSupabase,
+  subscribeToStoreSync,
+  isSupabaseConfigured
 } from '../lib/supabase';
 import { fetchLiveDollarRate, DEFAULT_FALLBACK_RATE } from '../utils/exchangeRateClient';
 import { translations } from '../locales/translations';
@@ -220,11 +229,33 @@ interface StoreContextType {
   brands: string[];
   addBrand: (brandName: string) => boolean;
   deleteBrand: (brandName: string) => void;
+
+  // Supabase Real-Time Data Sync & Loading State
+  isDataLoading: boolean;
+  refreshAllStoreData: () => Promise<void>;
+  isSupabaseConfigured: boolean;
+  lastSynced: Date | null;
+  lastSyncStatus: 'synced' | 'syncing' | 'error';
+  triggerManualSync: () => Promise<void>;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Supabase Database Sync Status & Timestamp
+  const [lastSynced, setLastSynced] = useState<Date | null>(new Date());
+  const [lastSyncStatus, setLastSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+
+  const onDatabaseSynced = useCallback(() => {
+    setLastSynced(new Date());
+    setLastSyncStatus('synced');
+  }, []);
+
+  const onDatabaseSyncError = useCallback((err?: any) => {
+    console.warn('Database sync error:', err);
+    setLastSyncStatus('error');
+  }, []);
+
   // Locale State
   const [locale, setLocaleState] = useState<Language>(() => {
     const saved = localStorage.getItem('allaith_locale');
@@ -425,7 +456,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateStoreSettings = (data: Partial<StoreSettings>) => {
     setStoreSettings((prev) => {
       const merged = { ...prev, ...data };
-      upsertSettingsToSupabase(merged).catch((err) => console.warn('Supabase settings sync error:', err));
+      upsertSettingsToSupabase(merged).then(onDatabaseSynced).catch(onDatabaseSyncError);
       return merged;
     });
     showToast(t('save_changes'));
@@ -581,7 +612,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: new Date().toISOString()
     };
     setProducts((prev) => [newProduct, ...prev]);
-    upsertProductToSupabase(newProduct).catch((err) => console.warn('Supabase product add error:', err));
+    upsertProductToSupabase(newProduct).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(t('product_saved'));
   };
 
@@ -597,7 +628,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           merged.has_discount = true;
           merged.discount_percent = Math.round(((merged.compare_at_price_usd - merged.price_usd) / merged.compare_at_price_usd) * 100);
         }
-        upsertProductToSupabase(merged).catch((err) => console.warn('Supabase product update error:', err));
+        upsertProductToSupabase(merged).then(onDatabaseSynced).catch(onDatabaseSyncError);
         return merged;
       })
     );
@@ -606,13 +637,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteProduct = (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    deleteProductFromSupabase(id).catch((err) => console.warn('Supabase product delete error:', err));
+    deleteProductFromSupabase(id).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(t('product_deleted'));
   };
 
   const archiveProduct = (id: string, isArchived: boolean) => {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, is_archived: isArchived } : p)));
-    archiveProductInSupabase(id, isArchived).catch((err) => console.warn('Supabase product archive error:', err));
+    archiveProductInSupabase(id, isArchived).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(
       isArchived
         ? (locale === 'ar' ? 'تمت أرشفة المنتج وإخفاؤه من الواجهة العامة للمتجر' : 'Product archived and hidden from public store')
@@ -631,7 +662,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           price: newPriceSYP,
           price_usd: usd
         };
-        upsertProductToSupabase(updated).catch((err) => console.warn('Supabase quick price update error:', err));
+        upsertProductToSupabase(updated).then(onDatabaseSynced).catch(onDatabaseSyncError);
         return updated;
       })
     );
@@ -813,7 +844,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `cat-${Date.now()}`
     };
     setCategories((prev) => [...prev, newCat]);
-    upsertCategoryToSupabase(newCat).catch((err) => console.warn('Supabase category add error:', err));
+    upsertCategoryToSupabase(newCat).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(locale === 'ar' ? 'تمت إضافة الفئة بنجاح!' : 'Category added successfully!');
   };
 
@@ -822,7 +853,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((c) => {
         if (c.id !== id) return c;
         const merged = { ...c, ...data };
-        upsertCategoryToSupabase(merged).catch((err) => console.warn('Supabase category update error:', err));
+        upsertCategoryToSupabase(merged).then(onDatabaseSynced).catch(onDatabaseSyncError);
         return merged;
       })
     );
@@ -831,13 +862,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteCategory = (id: string) => {
     setCategories((prev) => prev.filter((c) => c.id !== id));
-    deleteCategoryFromSupabase(id).catch((err) => console.warn('Supabase category delete error:', err));
+    deleteCategoryFromSupabase(id).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(locale === 'ar' ? 'تم حذف الفئة' : 'Category deleted');
   };
 
   const archiveCategory = (id: string, isArchived: boolean) => {
     setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, is_archived: isArchived } : c)));
-    archiveCategoryInSupabase(id, isArchived).catch((err) => console.warn('Supabase category archive error:', err));
+    archiveCategoryInSupabase(id, isArchived).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(
       isArchived
         ? (locale === 'ar' ? 'تمت أرشفة الفئة وإخفاؤها من المتجر' : 'Category archived and hidden')
@@ -922,7 +953,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setHeroSlides((prev) => {
       const updated = [...prev, newSlide];
-      upsertHeroSlideToSupabase(newSlide, updated.length - 1).catch((err) => console.warn('Supabase hero slide add error:', err));
+      upsertHeroSlideToSupabase(newSlide, updated.length - 1).then(onDatabaseSynced).catch(onDatabaseSyncError);
       return updated;
     });
     showToast(locale === 'ar' ? 'تمت إضافة بانر جديد للرئيسية' : 'New hero banner added');
@@ -933,7 +964,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((s, idx) => {
         if (s.id !== id) return s;
         const merged = { ...s, ...data };
-        upsertHeroSlideToSupabase(merged, idx).catch((err) => console.warn('Supabase hero slide update error:', err));
+        upsertHeroSlideToSupabase(merged, idx).then(onDatabaseSynced).catch(onDatabaseSyncError);
         return merged;
       })
     );
@@ -942,7 +973,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteHeroSlide = (id: string) => {
     setHeroSlides((prev) => prev.filter((s) => s.id !== id));
-    deleteHeroSlideFromSupabase(id).catch((err) => console.warn('Supabase hero slide delete error:', err));
+    deleteHeroSlideFromSupabase(id).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(locale === 'ar' ? 'تم حذف البانر' : 'Banner slide deleted');
   };
 
@@ -1139,6 +1170,94 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         );
       }
 
+      // 4. Sync Hero Slides
+      if (heroSlides.length > 0) {
+        await client.from('hero_slides').upsert(
+          heroSlides.map((s, idx) => ({
+            id: s.id,
+            title_ar: s.title_ar,
+            title_en: s.title_en,
+            subtitle_ar: s.subtitle_ar,
+            subtitle_en: s.subtitle_en,
+            badge_ar: s.badge_ar,
+            badge_en: s.badge_en,
+            image_url: s.image_url,
+            link_type: s.link_type,
+            link_target: s.link_target,
+            button_text_ar: s.button_text_ar,
+            button_text_en: s.button_text_en,
+            sort_order: s.sort_order ?? idx,
+            is_active: s.is_active ?? true
+          }))
+        );
+      }
+
+      // 5. Sync Orders
+      if (orders.length > 0) {
+        await client.from('orders').upsert(
+          orders.map((o) => ({
+            id: o.id,
+            order_number: o.order_number,
+            customer_name: o.customer_name,
+            customer_phone: o.customer_phone,
+            governorate: o.governorate,
+            delivery_address: o.delivery_address,
+            notes: o.notes,
+            items: o.items,
+            subtotal: o.subtotal,
+            delivery_fee: o.delivery_fee,
+            total: o.total,
+            currency: o.currency,
+            status: o.status,
+            whatsapp_sent: !!o.whatsapp_sent,
+            google_sheets_synced: !!o.google_sheets_synced,
+            synced_to_sheets: !!o.synced_to_sheets,
+            created_at: o.created_at
+          }))
+        );
+      }
+
+      // 6. Sync Maintenance Requests
+      if (maintenanceRequests.length > 0) {
+        await client.from('maintenance_requests').upsert(
+          maintenanceRequests.map((m) => ({
+            id: m.id,
+            request_number: m.request_number,
+            customer_name: m.customer_name,
+            phone: m.phone,
+            device_type: m.device_type,
+            device_model: m.device_model,
+            issue_description: m.issue_description,
+            preferred_date: m.preferred_date,
+            photo_url: m.photo_url,
+            status: m.status,
+            estimated_cost: m.estimated_cost,
+            notes_admin: m.notes_admin,
+            created_at: m.created_at
+          }))
+        );
+      }
+
+      // 7. Sync Phone Requests
+      if (phoneRequests.length > 0) {
+        await client.from('phone_requests').upsert(
+          phoneRequests.map((pr) => ({
+            id: pr.id,
+            request_number: pr.request_number,
+            customer_name: pr.customer_name,
+            phone: pr.phone,
+            address: pr.address,
+            device_type: pr.device_type,
+            specifications: pr.specifications,
+            storage: pr.storage,
+            color: pr.color,
+            condition: pr.condition,
+            status: pr.status,
+            created_at: pr.created_at
+          }))
+        );
+      }
+
       showToast(locale === 'ar' ? 'تم حفظ ومزامنة كافة البيانات مع قاعدة بيانات Supabase بنجاح!' : 'All data synced to Supabase successfully!');
       return { success: true, message: 'All tables synced successfully' };
     } catch (err: any) {
@@ -1150,19 +1269,74 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // Realtime Supabase Synchronization and Automatic Hydration
+  const [isDataLoading, setIsDataLoading] = useState<boolean>(true);
+  const isSupabaseConfiguredValue = isSupabaseConfigured();
+
+  const refreshAllStoreData = useCallback(async () => {
+    setIsDataLoading(true);
+    setLastSyncStatus('syncing');
+    try {
+      const client = getSupabaseClient();
+      if (!client) {
+        setIsDataLoading(false);
+        setLastSyncStatus('synced');
+        return;
+      }
+      const [remoteProds, remoteCats, remoteSlides, remoteSettings, remoteOrders, remoteMnt, remotePhones] = await Promise.all([
+        fetchProductsFromSupabase(),
+        fetchCategoriesFromSupabase(),
+        fetchHeroSlidesFromSupabase(),
+        fetchSettingsFromSupabase(),
+        fetchOrdersFromSupabase(),
+        fetchMaintenanceRequestsFromSupabase(),
+        fetchPhoneRequestsFromSupabase()
+      ]);
+
+      if (remoteProds && remoteProds.length > 0) setProducts(remoteProds);
+      if (remoteCats && remoteCats.length > 0) setCategories(remoteCats);
+      if (remoteSlides && remoteSlides.length > 0) setHeroSlides(remoteSlides);
+      if (remoteSettings && Object.keys(remoteSettings).length > 0) {
+        setStoreSettings((prev) => ({ ...prev, ...remoteSettings }));
+      }
+      if (remoteOrders && remoteOrders.length > 0) setOrders(remoteOrders);
+      if (remoteMnt && remoteMnt.length > 0) setMaintenanceRequests(remoteMnt);
+      if (remotePhones && remotePhones.length > 0) setPhoneRequests(remotePhones);
+      onDatabaseSynced();
+      showToast(locale === 'ar' ? 'تم تحديث كافة بيانات المتجر من قاعدة البيانات بنجاح' : 'Store data refreshed from Supabase');
+    } catch (err) {
+      console.warn('Manual refresh store data error:', err);
+      onDatabaseSyncError(err);
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [locale, showToast, onDatabaseSynced, onDatabaseSyncError]);
+
+  const triggerManualSync = useCallback(async () => {
+    await refreshAllStoreData();
+  }, [refreshAllStoreData]);
+
   useEffect(() => {
     let isMounted = true;
 
     const hydrateFromSupabase = async () => {
       try {
         const client = getSupabaseClient();
-        if (!client) return;
+        if (!client) {
+          // If no Supabase configured yet, resolve skeleton smoothly from local seed data
+          setTimeout(() => {
+            if (isMounted) setIsDataLoading(false);
+          }, 350);
+          return;
+        }
 
-        const [remoteProds, remoteCats, remoteSlides, remoteSettings] = await Promise.all([
+        const [remoteProds, remoteCats, remoteSlides, remoteSettings, remoteOrders, remoteMnt, remotePhones] = await Promise.all([
           fetchProductsFromSupabase(),
           fetchCategoriesFromSupabase(),
           fetchHeroSlidesFromSupabase(),
-          fetchSettingsFromSupabase()
+          fetchSettingsFromSupabase(),
+          fetchOrdersFromSupabase(),
+          fetchMaintenanceRequestsFromSupabase(),
+          fetchPhoneRequestsFromSupabase()
         ]);
 
         if (!isMounted) return;
@@ -1179,8 +1353,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (remoteSettings && Object.keys(remoteSettings).length > 0) {
           setStoreSettings((prev) => ({ ...prev, ...remoteSettings }));
         }
+        if (remoteOrders && remoteOrders.length > 0) {
+          setOrders(remoteOrders);
+        }
+        if (remoteMnt && remoteMnt.length > 0) {
+          setMaintenanceRequests(remoteMnt);
+        }
+        if (remotePhones && remotePhones.length > 0) {
+          setPhoneRequests(remotePhones);
+        }
+        onDatabaseSynced();
       } catch (e) {
         console.warn('Initial Supabase sync check:', e);
+      } finally {
+        if (isMounted) {
+          setIsDataLoading(false);
+        }
       }
     };
 
@@ -1190,22 +1378,56 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribe = subscribeToStoreSync((table, eventType) => {
       if (!isMounted) return;
       console.log(`[Supabase Realtime Sync] Table changed: ${table} (${eventType})`);
+      onDatabaseSynced();
 
       if (table === 'products') {
         fetchProductsFromSupabase().then((latest) => {
-          if (latest && isMounted) setProducts(latest);
+          if (latest && isMounted) {
+            setProducts(latest);
+            onDatabaseSynced();
+          }
         });
       } else if (table === 'categories') {
         fetchCategoriesFromSupabase().then((latest) => {
-          if (latest && isMounted) setCategories(latest);
+          if (latest && isMounted) {
+            setCategories(latest);
+            onDatabaseSynced();
+          }
         });
       } else if (table === 'hero_slides') {
         fetchHeroSlidesFromSupabase().then((latest) => {
-          if (latest && isMounted) setHeroSlides(latest);
+          if (latest && isMounted) {
+            setHeroSlides(latest);
+            onDatabaseSynced();
+          }
         });
       } else if (table === 'store_settings') {
         fetchSettingsFromSupabase().then((latest) => {
-          if (latest && isMounted) setStoreSettings((prev) => ({ ...prev, ...latest }));
+          if (latest && isMounted) {
+            setStoreSettings((prev) => ({ ...prev, ...latest }));
+            onDatabaseSynced();
+          }
+        });
+      } else if (table === 'orders') {
+        fetchOrdersFromSupabase().then((latest) => {
+          if (latest && isMounted) {
+            setOrders(latest);
+            onDatabaseSynced();
+          }
+        });
+      } else if (table === 'maintenance_requests') {
+        fetchMaintenanceRequestsFromSupabase().then((latest) => {
+          if (latest && isMounted) {
+            setMaintenanceRequests(latest);
+            onDatabaseSynced();
+          }
+        });
+      } else if (table === 'phone_requests') {
+        fetchPhoneRequestsFromSupabase().then((latest) => {
+          if (latest && isMounted) {
+            setPhoneRequests(latest);
+            onDatabaseSynced();
+          }
         });
       }
     });
@@ -1214,7 +1436,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isMounted = false;
       unsubscribe();
     };
-  }, []);
+  }, [onDatabaseSynced]);
 
   // Dynamic XML Sitemap Generator
   const generateSitemapXml = useCallback((): string => {
@@ -1518,6 +1740,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setOrders((prev) => [newOrder, ...prev]);
 
+    // Save directly to Supabase
+    upsertOrderToSupabase(newOrder).catch((err) => console.warn('Supabase order save error:', err));
+
     // Dispatch background sync to Google Sheets
     syncOrderToSheetsWebhook(newOrder);
 
@@ -1586,6 +1811,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status } : o))
     );
+    updateOrderStatusInSupabase(orderId, status).then(onDatabaseSynced).catch(onDatabaseSyncError);
     showToast(t('save_changes'));
   };
 
@@ -1631,6 +1857,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setMaintenanceRequests((prev) => [newReq, ...prev]);
+    upsertMaintenanceRequestToSupabase(newReq).catch((err) => console.warn('Supabase maintenance save error:', err));
 
     const isAr = locale === 'ar';
     const storeName = isAr ? storeSettings.site_name_ar : storeSettings.site_name_en;
@@ -1694,6 +1921,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setPhoneRequests((prev) => [newReq, ...prev]);
+    upsertPhoneRequestToSupabase(newReq).catch((err) => console.warn('Supabase phone request save error:', err));
 
     const isAr = locale === 'ar';
     const storeName = isAr ? storeSettings.site_name_ar : storeSettings.site_name_en;
@@ -1743,6 +1971,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setMaintenanceRequests((prev) =>
       prev.map((m) => (m.id === id ? { ...m, status, notes_admin: adminNotes ?? m.notes_admin } : m))
     );
+    updateMaintenanceStatusInSupabase(id, status).catch((err) => console.warn('Supabase maintenance status error:', err));
     showToast(t('save_changes'));
   };
 
@@ -1857,6 +2086,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         brands,
         addBrand,
         deleteBrand,
+        isDataLoading,
+        refreshAllStoreData,
+        isSupabaseConfigured: isSupabaseConfiguredValue,
+        lastSynced,
+        lastSyncStatus,
+        triggerManualSync,
         exchangeRateData,
         isExchangeRateLoading,
         exchangeRateError,

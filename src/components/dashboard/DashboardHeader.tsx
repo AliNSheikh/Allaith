@@ -8,7 +8,11 @@ import {
   Search,
   DollarSign,
   TrendingUp,
-  UserCheck
+  UserCheck,
+  Database,
+  RefreshCw,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import { DashboardTab } from './DashboardSidebar';
@@ -28,10 +32,27 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
     setLocale,
     storeSettings,
     exitAdminPortal,
-    setIsAdminAuthenticated
+    setIsAdminAuthenticated,
+    lastSynced,
+    lastSyncStatus,
+    triggerManualSync,
+    isSupabaseConfigured
   } = useStore();
 
   const isAr = locale === 'ar';
+
+  const formatLastSynced = (date: Date | null) => {
+    if (!date) return isAr ? 'جارِ المزامنة...' : 'Syncing...';
+    try {
+      return date.toLocaleTimeString(isAr ? 'ar-SY' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch {
+      return isAr ? 'الآن' : 'Just now';
+    }
+  };
 
   const tabTitles: Record<DashboardTab, { ar: string; en: string; desc_ar: string; desc_en: string }> = {
     analytics: {
@@ -112,6 +133,67 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({
 
       {/* Header Actions */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Supabase Database Sync Status & Last Synced Timestamp Indicator */}
+        <div
+          className={`flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all shadow-xs ${
+            lastSyncStatus === 'syncing'
+              ? 'bg-blue-50/90 border-blue-200 text-blue-800'
+              : lastSyncStatus === 'error'
+              ? 'bg-amber-50/90 border-amber-200 text-amber-800'
+              : 'bg-emerald-50/90 border-emerald-200/80 text-emerald-900'
+          }`}
+          title={
+            isAr
+              ? `قاعدة البيانات متصلة مباشرة مع Supabase\nآخر تحديث ومزامنة: ${formatLastSynced(lastSynced)}\nانقر على زر التحديث للمزامنة الفورية`
+              : `Connected directly to Supabase\nLast synced: ${formatLastSynced(lastSynced)}\nClick refresh icon to re-sync`
+          }
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="relative flex h-2 w-2">
+              {lastSyncStatus === 'syncing' ? (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+              ) : (
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              )}
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${
+                  lastSyncStatus === 'syncing'
+                    ? 'bg-blue-600'
+                    : lastSyncStatus === 'error'
+                    ? 'bg-amber-500'
+                    : 'bg-emerald-600'
+                }`}
+              />
+            </span>
+            <Database className="w-3.5 h-3.5 text-stone-500 hidden sm:inline" />
+          </div>
+
+          <div className="flex items-center gap-1 leading-tight">
+            <span className="text-[10px] sm:text-xs text-stone-600 font-medium">
+              {isAr ? 'آخر مزامنة:' : 'Last Synced:'}
+            </span>
+            <span className="font-mono text-[11px] sm:text-xs font-bold text-stone-900">
+              {lastSyncStatus === 'syncing'
+                ? (isAr ? 'جارِ التحديث...' : 'Syncing...')
+                : formatLastSynced(lastSynced)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={triggerManualSync}
+            disabled={lastSyncStatus === 'syncing'}
+            className="p-1 rounded-lg hover:bg-white/80 text-stone-500 hover:text-stone-900 transition-colors disabled:opacity-50 cursor-pointer"
+            title={isAr ? 'مزامنة وتحديث فوري مع قاعدة البيانات' : 'Sync now with database'}
+          >
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${
+                lastSyncStatus === 'syncing' ? 'animate-spin text-blue-600' : ''
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Live USD Exchange Rate Pill */}
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

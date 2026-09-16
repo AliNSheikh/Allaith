@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from './ProductCard';
 import { ProductCompareModal } from './ProductCompareModal';
+import { ProductGridSkeleton } from './LoadingSkeletons';
 import { Product } from '../types';
 import {
   SlidersHorizontal,
@@ -29,7 +30,8 @@ export const CatalogPage: React.FC = () => {
     categories,
     activeCategoryFilter,
     setActiveCategoryFilter,
-    storeSettings
+    storeSettings,
+    isDataLoading
   } = useStore();
 
   const isAr = locale === 'ar';
@@ -603,7 +605,9 @@ export const CatalogPage: React.FC = () => {
 
           {/* Product Grid Area - STRICTLY 2-COLUMNS ON MOBILE (grid-cols-2) */}
           <main className="lg:col-span-9">
-            {filteredProducts.length > 0 ? (
+            {isDataLoading ? (
+              <ProductGridSkeleton count={6} />
+            ) : filteredProducts.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-3 gap-2.5 sm:gap-6">
                 {filteredProducts.map((product) => (
                   <ProductCard

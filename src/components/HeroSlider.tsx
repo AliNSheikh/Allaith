@@ -1,19 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { initialHeroSlides } from '../data/initialData';
+import { HeroSliderSkeleton } from './LoadingSkeletons';
 import { ChevronLeft, ChevronRight, ArrowRight, ArrowLeft } from 'lucide-react';
 
 export const HeroSlider: React.FC = () => {
-  const { locale, t, setCurrentView, setActiveCategoryFilter, heroSlides } = useStore();
+  const { locale, t, setCurrentView, setActiveCategoryFilter, heroSlides, isDataLoading } = useStore();
   const [currentSlide, setCurrentSlide] = useState(0);
   const slides = heroSlides && heroSlides.length > 0 ? heroSlides : initialHeroSlides;
 
   useEffect(() => {
+    if (slides.length <= 1) return;
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 6500);
     return () => clearInterval(timer);
   }, [slides.length]);
+
+  if (isDataLoading) {
+    return <HeroSliderSkeleton />;
+  }
 
   const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % slides.length);
   const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);

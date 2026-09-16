@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from './ProductCard';
+import { ProductDetailSkeleton } from './LoadingSkeletons';
 import {
   Star,
   ShoppingBag,
@@ -32,10 +33,16 @@ export const ProductDetailPage: React.FC = () => {
     getWhatsAppProductUrl,
     getWhatsAppPriceInquiryUrl,
     showToast,
-    isAdmin
+    isAdmin,
+    isDataLoading
   } = useStore();
 
   const isAr = locale === 'ar';
+
+  if (isDataLoading) {
+    return <ProductDetailSkeleton />;
+  }
+
   const targetProduct = products.find((p) => p.id === selectedProductId);
   const activeProducts = products.filter((p) => !p.is_archived);
 

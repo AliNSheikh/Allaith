@@ -11,17 +11,22 @@ import {
   Zap,
   DollarSign,
   Save,
-  Key
+  Key,
+  UploadCloud,
+  DownloadCloud
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
-import { SUPABASE_SQL_SCHEMA } from '../../lib/supabase';
+import { SUPABASE_SQL_SCHEMA, testSupabaseConnection } from '../../lib/supabase';
 
 export const IntegrationsView: React.FC = () => {
   const {
     locale,
     storeSettings,
     updateStoreSettings,
-    showToast
+    showToast,
+    syncAllDataToSupabase,
+    refreshAllStoreData,
+    isDataLoading
   } = useStore();
 
   const isAr = locale === 'ar';
@@ -37,6 +42,9 @@ export const IntegrationsView: React.FC = () => {
   const [isSaved, setIsSaved] = useState(false);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [supabaseTestStatus, setSupabaseTestStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [supabaseTestMsg, setSupabaseTestMsg] = useState<string>('');
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [isPullingAll, setIsPullingAll] = useState(false);
 
   const [isTestingSheets, setIsTestingSheets] = useState(false);
   const [sheetsTestStatus, setSheetsTestStatus] = useState<'idle' | 'success'>('idle');
@@ -49,15 +57,55 @@ export const IntegrationsView: React.FC = () => {
     setTimeout(() => setIsSaved(false), 2500);
   };
 
-  const handleTestSupabase = () => {
+  const handleTestSupabase = async () => {
     setIsTestingSupabase(true);
     setSupabaseTestStatus('idle');
+    setSupabaseTestMsg('');
 
-    setTimeout(() => {
+    try {
+      const result = await testSupabaseConnection(formSettings.supabase_url, formSettings.supabase_anon_key);
       setIsTestingSupabase(false);
-      setSupabaseTestStatus('success');
-      showToast(isAr ? 'الاتصال مع قاعدة بيانات Supabase مستقر بنجاح!' : 'Supabase connected successfully!');
-    }, 1200);
+      if (result.success) {
+        setSupabaseTestStatus('success');
+        setSupabaseTestMsg(result.message);
+        showToast(result.message);
+      } else {
+        setSupabaseTestStatus('error');
+        setSupabaseTestMsg(result.message);
+        showToast(result.message);
+      }
+    } catch (err: any) {
+      setIsTestingSupabase(false);
+      setSupabaseTestStatus('error');
+      setSupabaseTestMsg(err?.message || 'Error testing connection');
+    }
+  };
+
+  const handleSyncAllToSupabase = async () => {
+    setIsSyncingAll(true);
+    try {
+      // First save the settings if not yet saved
+      updateStoreSettings(formSettings);
+      const res = await syncAllDataToSupabase();
+      if (res.success) {
+        showToast(isAr ? 'تم رفع ومزامنة كافة بيانات المتجر مع Supabase بنجاح!' : 'All store data synced to Supabase!');
+      } else {
+        showToast(res.message);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Sync failed');
+    } finally {
+      setIsSyncingAll(false);
+    }
+  };
+
+  const handlePullAllFromSupabase = async () => {
+    setIsPullingAll(true);
+    try {
+      await refreshAllStoreData();
+    } finally {
+      setIsPullingAll(false);
+    }
   };
 
   const handleTestSheets = async () => {
@@ -223,11 +271,55 @@ export const IntegrationsView: React.FC = () => {
             </div>
 
             {supabaseTestStatus === 'success' && (
-              <span className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>{isAr ? 'الاتصال بقاعدة البيانات ناجح ومستقر' : 'Connected Successfully'}</span>
-              </span>
+              <div className="flex items-center gap-1.5 text-xs text-emerald-700 font-bold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{supabaseTestMsg || (isAr ? 'الاتصال بقاعدة البيانات ناجح ومستقر' : 'Connected Successfully')}</span>
+              </div>
             )}
+
+            {supabaseTestStatus === 'error' && (
+              <div className="flex items-center gap-1.5 text-xs text-rose-700 font-bold bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-200">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{supabaseTestMsg || (isAr ? 'تعذر الاتصال بقاعدة البيانات، تحقق من الرابط والمفتاح' : 'Connection failed')}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Cloud Sync Actions */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                <Zap className="w-4 h-4 text-emerald-600" />
+                <span>{isAr ? 'المزامنة السحابية الشاملة' : 'Full Cloud Synchronization'}</span>
+              </h4>
+              <p className="text-[11px] text-emerald-800/80 mt-0.5">
+                {isAr
+                  ? 'رفع كافة المنتجات والأقسام والبانرات والإعدادات والطلبات الحالية إلى Supabase أو جلب أحدث البيانات'
+                  : 'Push all local store catalog/settings to Supabase or pull latest remote records'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+              <button
+                type="button"
+                onClick={handleSyncAllToSupabase}
+                disabled={isSyncingAll}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                <UploadCloud className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-bounce' : ''}`} />
+                <span>{isSyncingAll ? (isAr ? 'جارِ الرفع...' : 'Syncing...') : (isAr ? 'رفع الكل إلى Supabase' : 'Push All')}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePullAllFromSupabase}
+                disabled={isPullingAll || isDataLoading}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+              >
+                <DownloadCloud className={`w-3.5 h-3.5 ${isPullingAll || isDataLoading ? 'animate-spin' : ''}`} />
+                <span>{isPullingAll ? (isAr ? 'جارِ الجلب...' : 'Pulling...') : (isAr ? 'تحديث وسحب من السحابة' : 'Pull All')}</span>
+              </button>
+            </div>
           </div>
 
           {/* Quick Steps Box */}
