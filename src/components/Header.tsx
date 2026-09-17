@@ -38,6 +38,7 @@ export const Header: React.FC = () => {
     categories,
     storeSettings,
     setSelectedProductId,
+    navigateToProduct,
     activeCategoryFilter,
     setActiveCategoryFilter,
     formatPrice,
@@ -89,8 +90,12 @@ export const Header: React.FC = () => {
     : [];
 
   const handleSelectProduct = (productId: string) => {
-    setSelectedProductId(productId);
-    setCurrentView('pdp');
+    if (navigateToProduct) {
+      navigateToProduct(productId);
+    } else {
+      setSelectedProductId(productId);
+      setCurrentView('pdp');
+    }
     setIsSearchOpen(false);
     setSearchInput('');
     setIsMobileMenuOpen(false);

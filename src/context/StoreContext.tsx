@@ -17,6 +17,7 @@ import {
   VisitorStatDay,
   AnalyticsVisitRecord
 } from '../types';
+import { getProductShareableUrl, getProductUniqueSlug } from '../utils/productUrl';
 import {
   getSupabaseClient,
   authenticateAdminWithSupabase,
@@ -93,6 +94,8 @@ interface StoreContextType {
   // Navigation & Views
   currentView: 'home' | 'catalog' | 'pdp' | 'admin';
   setCurrentView: (view: 'home' | 'catalog' | 'pdp' | 'admin') => void;
+  navigateToProduct: (productOrId: Product | string) => void;
+  getProductUrl: (product: Product | { id: string; slug?: string }) => string;
   selectedProductId: string | null;
   setSelectedProductId: (id: string | null) => void;
   searchQuery: string;
@@ -334,26 +337,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [currentView, setCurrentViewState] = useState<'home' | 'catalog' | 'pdp' | 'admin'>(() => {
-    return checkIsAdminHash() ? 'admin' : 'home';
+    if (typeof window === 'undefined') return 'home';
+    if (checkIsAdminHash()) return 'admin';
+    const hash = window.location.hash;
+    const path = window.location.pathname;
+    const search = window.location.search;
+    if (hash.match(/^#\/?product\//i) || path.match(/^\/product\//i) || search.includes('product=') || search.includes('p=')) {
+      return 'pdp';
+    }
+    if (hash.includes('catalog') || path === '/catalog') {
+      return 'catalog';
+    }
+    return 'home';
   });
 
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
-
-  const setCurrentView = (view: 'home' | 'catalog' | 'pdp' | 'admin') => {
-    if (view === 'admin') {
-      window.location.hash = '/admin';
-      setIsPrivateAdminRoute(true);
-    } else if (view === 'home') {
-      if (window.location.hash.includes('admin')) {
-        window.location.hash = '';
-      }
-      setIsPrivateAdminRoute(false);
-    }
-    setCurrentViewState(view);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   const loginAdmin = async (usernameInput: string, passwordInput: string): Promise<{ success: boolean; error?: string }> => {
     const result = await authenticateAdminWithSupabase(usernameInput, passwordInput, {
@@ -428,25 +428,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('allaith_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Ensure the official logo is always favored over old generic svg placeholders
-        if (!parsed.logo_url || parsed.logo_url.includes('TELECOM') || parsed.logo_url.includes('EXPRESS STORE') || parsed.logo_url.startsWith('data:image/svg')) {
-          parsed.logo_url = '/al-laith-logo-horizontal.svg';
-        }
-        // Ensure new contact number and Latakia store address override old mock data
-        if (!parsed.whatsapp_number || parsed.whatsapp_number === '+963933123456') {
-          parsed.whatsapp_number = initialStoreSettings.whatsapp_number;
-          parsed.maintenance_whatsapp = initialStoreSettings.maintenance_whatsapp;
-          parsed.store_phone = initialStoreSettings.store_phone;
-        }
-        if (!parsed.store_address_ar || parsed.store_address_ar.includes('دمشق') || parsed.store_address_ar.includes('الثورة')) {
-          parsed.store_address_ar = initialStoreSettings.store_address_ar;
-          parsed.store_address_en = initialStoreSettings.store_address_en;
-          parsed.announcement_ar = initialStoreSettings.announcement_ar;
-          parsed.announcement_en = initialStoreSettings.announcement_en;
-        }
-        parsed.store_lat = initialStoreSettings.store_lat;
-        parsed.store_lng = initialStoreSettings.store_lng;
-        parsed.google_maps_url = initialStoreSettings.google_maps_url;
         return { ...initialStoreSettings, ...parsed };
       }
       return initialStoreSettings;
@@ -456,13 +437,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   useEffect(() => {
-    localStorage.setItem('allaith_settings', JSON.stringify(storeSettings));
+    try {
+      localStorage.setItem('allaith_settings', JSON.stringify(storeSettings));
+    } catch (e) {
+      console.warn('Error saving allaith_settings to localStorage:', e);
+    }
   }, [storeSettings]);
 
   const updateStoreSettings = (data: Partial<StoreSettings>) => {
     setStoreSettings((prev) => {
       const merged = { ...prev, ...data };
-      upsertSettingsToSupabase(merged).then(onDatabaseSynced).catch(onDatabaseSyncError);
+      try {
+        localStorage.setItem('allaith_settings', JSON.stringify(merged));
+      } catch (e) {
+        console.warn('LocalStorage save error:', e);
+      }
+
+      // Persist to server backend storage immediately
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(merged)
+      }).catch((e) => console.warn('Server settings sync error:', e));
+
+      // Persist to Supabase database immediately
+      upsertSettingsToSupabase(merged)
+        .then((res) => {
+          if (res.success) {
+            onDatabaseSynced();
+          } else {
+            console.warn('Supabase settings sync error:', res.error);
+            onDatabaseSyncError(res.error);
+          }
+        })
+        .catch(onDatabaseSyncError);
+
       return merged;
     });
     showToast(t('save_changes'));
@@ -496,12 +505,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const data = await fetchLiveDollarRate(force);
       setExchangeRateData(data);
-      if (data && data.old_lira && data.old_lira.sell > 0) {
-        setStoreSettings((prev) => ({
-          ...prev,
-          usd_exchange_rate: data.old_lira.sell
-        }));
-      }
+      // NOTE: We do not silently overwrite storeSettings.usd_exchange_rate here
+      // so any rate saved by the store owner in the dashboard settings is strictly preserved.
+      // The owner can explicitly click "Apply Live Rate" whenever desired.
     } catch (err: any) {
       console.warn('Error fetching live dollar rate from sp-today.com:', err);
       setExchangeRateError(err?.message || 'Error fetching rate');
@@ -587,6 +593,63 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     localStorage.setItem('allaith_products', JSON.stringify(products));
   }, [products]);
+
+  const getProductUrl = (product: Product | { id: string; slug?: string }): string => {
+    return getProductShareableUrl(product, storeSettings.site_domain);
+  };
+
+  const navigateToProduct = (productOrId: Product | string) => {
+    const prod = typeof productOrId === 'string'
+      ? products.find(p => p.id === productOrId || p.slug === productOrId)
+      : productOrId;
+
+    if (prod) {
+      setSelectedProductId(prod.id);
+      const slug = getProductUniqueSlug(prod);
+      window.location.hash = `product/${slug}`;
+      setCurrentViewState('pdp');
+      setIsPrivateAdminRoute(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const setCurrentView = (view: 'home' | 'catalog' | 'pdp' | 'admin') => {
+    if (view === 'admin') {
+      window.location.hash = '/admin';
+      setIsPrivateAdminRoute(true);
+    } else if (view === 'catalog') {
+      window.location.hash = 'catalog';
+      setIsPrivateAdminRoute(false);
+    } else if (view === 'pdp') {
+      const prod = products.find(p => p.id === selectedProductId);
+      if (prod) {
+        const slug = getProductUniqueSlug(prod);
+        window.location.hash = `product/${slug}`;
+      }
+      setIsPrivateAdminRoute(false);
+    } else if (view === 'home') {
+      if (window.location.hash) {
+        window.location.hash = '';
+      }
+      setIsPrivateAdminRoute(false);
+    }
+    setCurrentViewState(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Keep browser address bar in sync with the active product when viewing PDP
+  useEffect(() => {
+    if (currentView === 'pdp' && selectedProductId) {
+      const prod = products.find(p => p.id === selectedProductId);
+      if (prod) {
+        const slug = getProductUniqueSlug(prod);
+        const desiredHash = `#product/${slug}`;
+        if (window.location.hash !== desiredHash && window.location.hash !== `#/${desiredHash.slice(1)}`) {
+          window.location.hash = `product/${slug}`;
+        }
+      }
+    }
+  }, [currentView, selectedProductId, products]);
 
   const addProduct = (prodData: Omit<Product, 'id' | 'created_at'>) => {
     // Generate clean unique URL slug from title
@@ -905,6 +968,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const handleUrlChange = () => {
       const hash = window.location.hash;
       const path = window.location.pathname;
+      const search = window.location.search;
 
       if (checkIsAdminHash()) {
         setIsPrivateAdminRoute(true);
@@ -914,11 +978,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       setIsPrivateAdminRoute(false);
 
-      // Check product slug e.g. #/product/slug or /product/slug
-      const prodMatch = hash.match(/^#\/?product\/([^/?#]+)/i) || path.match(/^\/product\/([^/?#]+)/i);
-      if (prodMatch && prodMatch[1]) {
-        const targetSlug = prodMatch[1];
-        const found = products.find(p => p.slug === targetSlug || p.id === targetSlug);
+      // Check product slug e.g. #product/slug or #/product/slug or /product/slug or ?product=slug or ?p=slug
+      let targetProductSlug: string | null = null;
+
+      // 1. Hash matching: #product/xyz or #/product/xyz or #p=xyz
+      const hashProdMatch = hash.match(/^#\/?product\/([^/?#&]+)/i) || hash.match(/^#\/?p=([^/?#&]+)/i);
+      if (hashProdMatch && hashProdMatch[1]) {
+        targetProductSlug = decodeURIComponent(hashProdMatch[1]);
+      }
+
+      // 2. Query param matching: ?product=xyz or ?p=xyz
+      if (!targetProductSlug && search) {
+        try {
+          const params = new URLSearchParams(search);
+          const pParam = params.get('product') || params.get('p');
+          if (pParam) {
+            targetProductSlug = decodeURIComponent(pParam);
+          }
+        } catch {
+          // ignore query parse error
+        }
+      }
+
+      // 3. Path matching: /product/xyz
+      if (!targetProductSlug) {
+        const pathProdMatch = path.match(/^\/product\/([^/?#]+)/i);
+        if (pathProdMatch && pathProdMatch[1]) {
+          targetProductSlug = decodeURIComponent(pathProdMatch[1]);
+        }
+      }
+
+      if (targetProductSlug) {
+        const clean = targetProductSlug.trim().toLowerCase();
+        const found = products.find(p =>
+          (p.slug && p.slug.trim().toLowerCase() === clean) ||
+          p.id.toLowerCase() === clean
+        );
         if (found) {
           setSelectedProductId(found.id);
           setCurrentViewState('pdp');
@@ -926,11 +1021,14 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
 
-      // Check category slug e.g. #/category/slug
+      // Check category slug e.g. #/category/slug or #category/slug
       const catMatch = hash.match(/^#\/?category\/([^/?#]+)/i) || path.match(/^\/category\/([^/?#]+)/i);
       if (catMatch && catMatch[1]) {
-        const targetCatSlug = catMatch[1];
-        const foundCat = categories.find(c => c.slug === targetCatSlug || c.id === targetCatSlug);
+        const targetCatSlug = decodeURIComponent(catMatch[1]).toLowerCase();
+        const foundCat = categories.find(c => 
+          (c.slug && c.slug.toLowerCase() === targetCatSlug) || 
+          c.id.toLowerCase() === targetCatSlug
+        );
         if (foundCat) {
           setActiveCategoryFilter(foundCat.id);
           setCurrentViewState('catalog');
@@ -947,6 +1045,9 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setCurrentViewState('home');
       }
     };
+
+    // Run immediately on mount or when products / categories change
+    handleUrlChange();
 
     window.addEventListener('hashchange', handleUrlChange);
     window.addEventListener('popstate', handleUrlChange);
@@ -1357,6 +1458,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsDataLoading(true);
     setLastSyncStatus('syncing');
     try {
+      // Fetch server-persisted settings
+      try {
+        const srvRes = await fetch('/api/settings');
+        if (srvRes.ok) {
+          const srvData = await srvRes.json();
+          if (srvData?.success && srvData.settings) {
+            setStoreSettings((prev) => ({ ...prev, ...srvData.settings }));
+          }
+        }
+      } catch (err) {
+        console.warn('Server settings sync check in refresh:', err);
+      }
+
       const client = getSupabaseClient();
       if (!client) {
         setIsDataLoading(false);
@@ -1401,6 +1515,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const hydrateFromSupabase = async () => {
       try {
+        // Fetch server-persisted settings first
+        try {
+          const srvRes = await fetch('/api/settings');
+          if (srvRes.ok) {
+            const srvData = await srvRes.json();
+            if (srvData?.success && srvData.settings && isMounted) {
+              setStoreSettings((prev) => ({ ...prev, ...srvData.settings }));
+            }
+          }
+        } catch (err) {
+          console.warn('Server settings sync check in hydration:', err);
+        }
+
         const client = getSupabaseClient();
         if (!client) {
           // If no Supabase configured yet, resolve skeleton smoothly from local seed data
@@ -2084,6 +2211,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         convertSYPtoUSD,
         currentView,
         setCurrentView,
+        navigateToProduct,
+        getProductUrl,
         selectedProductId,
         setSelectedProductId,
         searchQuery,

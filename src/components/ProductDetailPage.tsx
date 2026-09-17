@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { ProductCard } from './ProductCard';
 import { ProductDetailSkeleton } from './LoadingSkeletons';
+import { ProductShareModal } from './ProductShareModal';
+import { getProductShareableUrl } from '../utils/productUrl';
 import {
   Star,
   ShoppingBag,
@@ -16,7 +18,9 @@ import {
   Check,
   Maximize2,
   X,
-  Sparkles
+  Sparkles,
+  Link2,
+  Copy
 } from 'lucide-react';
 
 export const ProductDetailPage: React.FC = () => {
@@ -34,7 +38,8 @@ export const ProductDetailPage: React.FC = () => {
     getWhatsAppPriceInquiryUrl,
     showToast,
     isAdmin,
-    isDataLoading
+    isDataLoading,
+    storeSettings
   } = useStore();
 
   const isAr = locale === 'ar';
@@ -64,6 +69,8 @@ export const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
 
   // Accordion tabs state
   const [openTab, setOpenTab] = useState<'specs' | 'warranty' | 'delivery' | 'return'>('specs');
@@ -147,17 +154,30 @@ export const ProductDetailPage: React.FC = () => {
     setTimeout(() => setJustAdded(false), 2000);
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title,
-        text: description,
-        url: window.location.href
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      showToast(isAr ? 'تم نسخ رابط المنتج!' : 'Product link copied to clipboard!');
+  const shareUrl = getProductShareableUrl(product, storeSettings.site_domain);
+
+  const handleCopyProductUrl = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+      } else {
+        const input = document.createElement('input');
+        input.value = shareUrl;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+      }
+      setIsLinkCopied(true);
+      showToast(isAr ? 'تم نسخ رابط المنتج الفريد بنجاح!' : 'Product link copied to clipboard!');
+      setTimeout(() => setIsLinkCopied(false), 2500);
+    } catch {
+      showToast(isAr ? 'يرجى نسخ الرابط يدوياً' : 'Please copy the link manually');
     }
+  };
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
   };
 
   const discountPercent = product.compare_at_price && product.compare_at_price > product.price
@@ -364,6 +384,53 @@ export const ProductDetailPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Direct Unique Product Link Box */}
+              <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200/90 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500 text-stone-950 flex items-center justify-center shrink-0 shadow-2xs">
+                    <Link2 className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-stone-900">
+                        {isAr ? 'رابط المنتج المخصص:' : 'Unique Product Link:'}
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100/80 px-1.5 py-0.5 rounded font-bold">
+                        #{product.slug || product.id}
+                      </span>
+                    </div>
+                    <p className="font-mono text-[11px] text-stone-600 truncate mt-0.5 select-all" dir="ltr">
+                      {shareUrl}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCopyProductUrl}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+                      isLinkCopied
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-white border border-stone-300 text-stone-800 hover:bg-stone-100'
+                    }`}
+                    title={isAr ? 'نسخ رابط المنتج' : 'Copy link'}
+                  >
+                    {isLinkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{isLinkCopied ? (isAr ? 'تم النسخ!' : 'Copied!') : (isAr ? 'نسخ الرابط' : 'Copy')}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsShareModalOpen(true)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                    title={isAr ? 'مشاركة عبر واتساب وغيره' : 'Share'}
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>{isAr ? 'مشاركة' : 'Share'}</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Rating & Stock */}
               <div className="flex items-center justify-between py-1 border-b border-stone-100">
                 <div className="flex items-center gap-2">
@@ -566,6 +633,17 @@ export const ProductDetailPage: React.FC = () => {
                     </a>
                   </>
                 )}
+
+                {/* Dedicated Share Product Button */}
+                <button
+                  id="pdp-share-product-btn"
+                  type="button"
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="w-full py-3.5 px-4 rounded-xl border border-stone-200 bg-stone-100 hover:bg-stone-200 text-stone-900 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs"
+                >
+                  <Share2 className="w-4 h-4 text-amber-600" />
+                  <span>{isAr ? 'مشاركة رابط هذا الجهاز المباشر' : 'Share This Product Link'}</span>
+                </button>
               </div>
             </div>
 
@@ -717,6 +795,12 @@ export const ProductDetailPage: React.FC = () => {
           />
         </div>
       )}
+      {/* Product Share Modal */}
+      <ProductShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        product={product}
+      />
     </div>
   );
 };

@@ -32,6 +32,7 @@ import {
 import { useStore } from '../../context/StoreContext';
 import { Product, ProductCondition, ProductVariantCombination, ProductSpecItem } from '../../types';
 import { generateUniqueSlug, checkIsSlugDuplicate, generateUniqueSku, slugifyText } from '../../utils/slugAndSku';
+import { getProductShareableUrl } from '../../utils/productUrl';
 
 export const ProductsView: React.FC = () => {
   const {
@@ -49,6 +50,7 @@ export const ProductsView: React.FC = () => {
     storeSettings,
     setSelectedProductId,
     setCurrentView,
+    navigateToProduct,
     showToast,
     saveAllDataToSupabase
   } = useStore();
@@ -856,12 +858,27 @@ export const ProductsView: React.FC = () => {
                       {/* Action Buttons */}
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-center gap-1">
+                          {/* Copy Unique Product Link */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const directUrl = getProductShareableUrl(prod, storeSettings.site_domain);
+                              if (navigator.clipboard && navigator.clipboard.writeText) {
+                                navigator.clipboard.writeText(directUrl);
+                              }
+                              showToast(isAr ? `تم نسخ رابط المنتج الفريد بنجاح!` : `Product link copied!`);
+                            }}
+                            title={isAr ? 'نسخ رابط المنتج المباشر' : 'Copy Direct Link'}
+                            className="p-1.5 rounded-lg text-amber-600 hover:text-amber-800 hover:bg-amber-50 transition-colors cursor-pointer"
+                          >
+                            <Link className="w-4 h-4" />
+                          </button>
+
                           {/* Preview in Store */}
                           <button
                             type="button"
                             onClick={() => {
-                              setSelectedProductId(prod.id);
-                              setCurrentView('pdp');
+                              navigateToProduct(prod);
                             }}
                             title={isAr ? 'معاينة في المتجر' : 'Preview'}
                             className="p-1.5 rounded-lg text-stone-500 hover:text-stone-900 hover:bg-stone-100 transition-colors cursor-pointer"

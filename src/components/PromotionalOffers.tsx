@@ -4,7 +4,7 @@ import { initialPromotionalOffers } from '../data/initialData';
 import { ArrowRight, ArrowLeft, Flame, Sparkles } from 'lucide-react';
 
 export const PromotionalOffers: React.FC = () => {
-  const { locale, t, setSelectedProductId, setCurrentView, products } = useStore();
+  const { locale, t, setSelectedProductId, setCurrentView, navigateToProduct, products } = useStore();
   const isAr = locale === 'ar';
 
   // Only display offers where the linked product is active and not archived
@@ -18,8 +18,12 @@ export const PromotionalOffers: React.FC = () => {
   if (activeOffers.length === 0) return null;
 
   const handleOfferClick = (productId: string) => {
-    setSelectedProductId(productId);
-    setCurrentView('pdp');
+    if (navigateToProduct) {
+      navigateToProduct(productId);
+    } else {
+      setSelectedProductId(productId);
+      setCurrentView('pdp');
+    }
   };
 
   return (

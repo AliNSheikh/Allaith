@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Product, Order, MaintenanceRequest, StoreSettings } from '../types';
 import {
@@ -82,6 +82,9 @@ export const AdminPanel: React.FC = () => {
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<StoreSettings>({ ...storeSettings });
+  useEffect(() => {
+    setSettingsForm({ ...storeSettings });
+  }, [storeSettings]);
   const [isTestingWebhook, setIsTestingWebhook] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 

@@ -523,23 +523,31 @@ export async function fetchSettingsFromSupabase(): Promise<Partial<StoreSettings
       .single();
 
     if (error || !data) return null;
-    return {
-      site_name_ar: data.site_name_ar ?? 'متجر الليث للهواتف الذكية',
-      site_name_en: data.site_name_en ?? 'Al-Laith Smart Phones',
-      custom_logo_url: data.custom_logo_url ?? data.logo_url ?? '',
-      whatsapp_number: data.whatsapp_number ?? '0937861787',
-      maintenance_whatsapp: data.maintenance_whatsapp ?? '0937861787',
-      usd_exchange_rate: Number(data.usd_exchange_rate) || 15000,
-      store_address_ar: data.store_address_ar ?? 'اللاذقية - شارع 8 آذار - مقابل بنك بيمو',
-      store_address_en: data.store_address_en ?? 'Latakia, 8th of March St, Facing BEMO Bank',
-      store_phone: data.store_phone ?? '041221199',
-      store_email: data.store_email ?? 'info@allaith-store.com',
-      store_lat: Number(data.store_lat) || 35.524917,
-      store_lng: Number(data.store_lng) || 35.852556,
-      google_sheets_webhook_url: data.google_sheets_webhook_url ?? '',
-      delivery_fee_base: data.delivery_fee_base != null ? Number(data.delivery_fee_base) : 25000,
-      free_delivery_threshold: data.free_delivery_threshold != null ? Number(data.free_delivery_threshold) : 5000000
-    };
+
+    const result: Partial<StoreSettings> = {};
+    if (data.site_name_ar) result.site_name_ar = data.site_name_ar;
+    if (data.site_name_en) result.site_name_en = data.site_name_en;
+    if (data.logo_url) result.logo_url = data.logo_url;
+    if (data.custom_logo_url) result.custom_logo_url = data.custom_logo_url;
+    if (data.footer_logo_url) result.footer_logo_url = data.footer_logo_url;
+    if (data.whatsapp_number) result.whatsapp_number = data.whatsapp_number;
+    if (data.maintenance_whatsapp) result.maintenance_whatsapp = data.maintenance_whatsapp;
+    if (data.usd_exchange_rate != null) result.usd_exchange_rate = Number(data.usd_exchange_rate);
+    if (data.store_address_ar) result.store_address_ar = data.store_address_ar;
+    if (data.store_address_en) result.store_address_en = data.store_address_en;
+    if (data.store_phone) result.store_phone = data.store_phone;
+    if (data.store_email) result.store_email = data.store_email;
+    if (data.store_hours_ar) result.store_hours_ar = data.store_hours_ar;
+    if (data.store_hours_en) result.store_hours_en = data.store_hours_en;
+    if (data.delivery_fee_base != null) result.delivery_fee_base = Number(data.delivery_fee_base);
+    if (data.free_delivery_threshold != null) result.free_delivery_threshold = Number(data.free_delivery_threshold);
+    if (data.announcement_ar) result.announcement_ar = data.announcement_ar;
+    if (data.announcement_en) result.announcement_en = data.announcement_en;
+    if (data.announcement_enabled != null) result.announcement_enabled = Boolean(data.announcement_enabled);
+    if (data.google_sheets_webhook_url) result.google_sheets_webhook_url = data.google_sheets_webhook_url;
+    if (data.google_sheets_sync_enabled != null) result.google_sheets_sync_enabled = Boolean(data.google_sheets_sync_enabled);
+
+    return result;
   } catch {
     return null;
   }
@@ -550,29 +558,43 @@ export async function upsertSettingsToSupabase(settings: StoreSettings): Promise
   if (!client) return { success: false, error: 'Supabase client not connected' };
 
   try {
+    const payload: Record<string, any> = {
+      id: 'default',
+      site_name_ar: settings.site_name_ar || 'الليث للاتصالات',
+      site_name_en: settings.site_name_en || 'Al-Laith for Telecommunications',
+      logo_url: settings.logo_url || null,
+      custom_logo_url: settings.custom_logo_url || null,
+      footer_logo_url: settings.footer_logo_url || null,
+      whatsapp_number: settings.whatsapp_number || '+963936097667',
+      maintenance_whatsapp: settings.maintenance_whatsapp || '+963936097667',
+      store_phone: settings.store_phone || '+963 936 097 667',
+      store_email: settings.store_email || 'info@allaith-telecom.sy',
+      store_address_ar: settings.store_address_ar || 'اللاذقية قرية الشير طريق الحفة بجانب الاشارة الصفراء',
+      store_address_en: settings.store_address_en || 'Al-Shir, Al-Haffah Road, Next to the Yellow Traffic Light, Latakia, Syria',
+      store_hours_ar: settings.store_hours_ar || 'السبت - الخميس: 9:30 صباحاً - 9:30 مساءً | الجمعة: 4:00 عصراً - 9:30 مساءً',
+      store_hours_en: settings.store_hours_en || 'Sat - Thu: 9:30 AM - 9:30 PM | Fri: 4:00 PM - 9:30 PM',
+      usd_exchange_rate: Number(settings.usd_exchange_rate) || 15000,
+      delivery_fee_base: Number(settings.delivery_fee_base) || 25000,
+      free_delivery_threshold: Number(settings.free_delivery_threshold) || 1500000,
+      announcement_ar: settings.announcement_ar || '⚡ أهلاً بكم في متجر الليث للاتصالات - اللاذقية | كفالة معتمدة وتوصيل لكافة المحافظات السورية',
+      announcement_en: settings.announcement_en || '⚡ Welcome to Al-Laith for Telecommunications - Latakia | Official Warranty & Nationwide Delivery',
+      announcement_enabled: settings.announcement_enabled !== false,
+      google_sheets_webhook_url: settings.google_sheets_webhook_url || null,
+      google_sheets_sync_enabled: Boolean(settings.google_sheets_sync_enabled),
+      updated_at: new Date().toISOString()
+    };
+
     const { error } = await client
       .from('store_settings')
-      .upsert({
-        id: 'default',
-        site_name_ar: settings.site_name_ar,
-        site_name_en: settings.site_name_en,
-        logo_url: settings.custom_logo_url || settings.logo_url,
-        custom_logo_url: settings.custom_logo_url,
-        whatsapp_number: settings.whatsapp_number,
-        maintenance_whatsapp: settings.maintenance_whatsapp,
-        usd_exchange_rate: settings.usd_exchange_rate,
-        store_address_ar: settings.store_address_ar,
-        store_address_en: settings.store_address_en,
-        store_phone: settings.store_phone,
-        store_email: settings.store_email,
-        store_lat: settings.store_lat,
-        store_lng: settings.store_lng,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      .upsert(payload, { onConflict: 'id' });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.warn('upsertSettingsToSupabase error:', error.message);
+      return { success: false, error: error.message };
+    }
     return { success: true };
   } catch (e: any) {
+    console.warn('upsertSettingsToSupabase exception:', e?.message);
     return { success: false, error: e?.message };
   }
 }

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { fetchSpTodayRates, CURRENT_MARKET_BASELINE } from './src/utils/spTodayService';
 import { GoogleGenAI } from '@google/genai';
@@ -10,6 +11,33 @@ function getAI(): GoogleGenAI | null {
     aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   }
   return aiClient;
+}
+
+// Persistent Store Settings Storage on server
+const SETTINGS_FILE_PATH = path.join(process.cwd(), 'data', 'store_settings.json');
+
+function readStoredSettings(): Record<string, any> | null {
+  try {
+    if (fs.existsSync(SETTINGS_FILE_PATH)) {
+      const raw = fs.readFileSync(SETTINGS_FILE_PATH, 'utf-8');
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    console.warn('Error reading store_settings.json:', err);
+  }
+  return null;
+}
+
+function writeStoredSettings(settings: Record<string, any>): void {
+  try {
+    const dir = path.dirname(SETTINGS_FILE_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(SETTINGS_FILE_PATH, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Error writing store_settings.json:', err);
+  }
 }
 
 // In-memory persistent visit tracker (in addition to client-side localStorage and Supabase)
@@ -240,6 +268,39 @@ Return a valid JSON object strictly matching this schema:
       total_visits: storedVisits.length,
       visits: storedVisits.slice(-500)
     });
+  });
+
+  // API endpoints: Store Settings (Server & Database Synchronization)
+  app.get('/api/settings', (req, res) => {
+    try {
+      const settings = readStoredSettings();
+      return res.json({
+        success: true,
+        settings: settings || null
+      });
+    } catch (err: any) {
+      console.error('Error in GET /api/settings:', err);
+      return res.status(500).json({ success: false, error: err?.message });
+    }
+  });
+
+  app.post('/api/settings', (req, res) => {
+    try {
+      const current = readStoredSettings() || {};
+      const updated = {
+        ...current,
+        ...req.body,
+        updated_at: new Date().toISOString()
+      };
+      writeStoredSettings(updated);
+      return res.json({
+        success: true,
+        settings: updated
+      });
+    } catch (err: any) {
+      console.error('Error in POST /api/settings:', err);
+      return res.status(500).json({ success: false, error: err?.message });
+    }
   });
 
   // Health endpoint

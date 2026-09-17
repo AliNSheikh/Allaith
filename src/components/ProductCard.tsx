@@ -36,6 +36,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     addToCart,
     setSelectedProductId,
     setCurrentView,
+    navigateToProduct,
     toggleWishlist,
     isInWishlist,
     formatProductPrice,
@@ -58,8 +59,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const priceData = formatProductPrice(product);
 
   const handleCardClick = () => {
-    setSelectedProductId(product.id);
-    setCurrentView('pdp');
+    if (navigateToProduct) {
+      navigateToProduct(product);
+    } else {
+      setSelectedProductId(product.id);
+      setCurrentView('pdp');
+    }
   };
 
   const handleQuickAdd = (e: React.MouseEvent) => {

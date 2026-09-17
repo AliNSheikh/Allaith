@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Palette,
   Sliders,
@@ -40,6 +40,10 @@ export const HomepageContentView: React.FC = () => {
   // Local state for store identity form
   const [settingsForm, setSettingsForm] = useState({ ...storeSettings });
   const [isSettingsSaved, setIsSettingsSaved] = useState(false);
+
+  useEffect(() => {
+    setSettingsForm({ ...storeSettings });
+  }, [storeSettings]);
 
   // Slide Modal State
   const [isSlideModalOpen, setIsSlideModalOpen] = useState(false);

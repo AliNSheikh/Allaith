@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   FileCode,
@@ -38,6 +38,16 @@ export const GoogleSeoView: React.FC = () => {
     google_ads_id: storeSettings.google_ads_id || 'AW-987654321',
     google_adsense_client: storeSettings.google_adsense_client || 'ca-pub-9988776655443322'
   });
+
+  useEffect(() => {
+    setFormSettings({
+      site_domain: storeSettings.site_domain || 'https://allaith.vercel.app',
+      google_analytics_id: storeSettings.google_analytics_id || 'G-L8THSYRIA26',
+      google_search_console_tag: storeSettings.google_search_console_tag || 'google-site-verification=allaith_telecom_syria_verified',
+      google_ads_id: storeSettings.google_ads_id || 'AW-987654321',
+      google_adsense_client: storeSettings.google_adsense_client || 'ca-pub-9988776655443322'
+    });
+  }, [storeSettings]);
 
   const [isCopiedSitemap, setIsCopiedSitemap] = useState(false);
   const [isCopiedSitemapUrl, setIsCopiedSitemapUrl] = useState(false);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Database,
   FileSpreadsheet,
@@ -38,6 +38,16 @@ export const IntegrationsView: React.FC = () => {
     google_sheets_webhook_url: storeSettings.google_sheets_webhook_url || '',
     usd_exchange_rate: storeSettings.usd_exchange_rate || 15000
   });
+
+  useEffect(() => {
+    setFormSettings({
+      supabase_url: storeSettings.supabase_url || '',
+      supabase_anon_key: storeSettings.supabase_anon_key || '',
+      supabase_enabled: storeSettings.supabase_enabled || false,
+      google_sheets_webhook_url: storeSettings.google_sheets_webhook_url || '',
+      usd_exchange_rate: storeSettings.usd_exchange_rate || 15000
+    });
+  }, [storeSettings]);
 
   const [isSaved, setIsSaved] = useState(false);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
