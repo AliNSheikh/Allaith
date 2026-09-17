@@ -231,40 +231,39 @@ export async function upsertProductToSupabase(prod: Product): Promise<{ success:
   if (!client) return { success: false, error: 'Supabase client not connected' };
 
   try {
-    const { error } = await client
-      .from('products')
-      .upsert({
-        id: prod.id,
-        title_ar: prod.title_ar,
-        title_en: prod.title_en,
-        slug: prod.slug,
-        description_ar: prod.description_ar,
-        description_en: prod.description_en,
-        category_id: prod.category_id,
-        brand: prod.brand,
-        price: prod.price,
-        price_usd: prod.price_usd,
-        compare_at_price: prod.compare_at_price,
-        compare_at_price_usd: prod.compare_at_price_usd,
-        has_discount: prod.has_discount,
-        discount_percent: prod.discount_percent,
-        condition: prod.condition,
-        condition_details: prod.condition_details,
-        device_type: prod.device_type,
-        images: prod.images,
-        variants: prod.variants,
-        variant_combinations: prod.variant_combinations,
-        specs: prod.specs,
-        stock_quantity: prod.stock_quantity,
-        is_featured: prod.is_featured,
-        is_archived: prod.is_archived ?? false,
-        rating: prod.rating,
-        reviews_count: prod.reviews_count,
-        sku: prod.sku,
-        warranty_ar: prod.warranty_ar,
-        warranty_en: prod.warranty_en,
-        created_at: prod.created_at || new Date().toISOString()
-      }, { onConflict: 'id' });
+    // Only send columns that exist in the Supabase products table schema
+    const payload = {
+      id: prod.id,
+      title_ar: prod.title_ar,
+      title_en: prod.title_en || prod.title_ar,
+      slug: prod.slug || prod.id,
+      description_ar: prod.description_ar || '',
+      description_en: prod.description_en || '',
+      category_id: prod.category_id,
+      brand: prod.brand || 'Al-Laith',
+      price: Number(prod.price) || 0,
+      price_usd: Number(prod.price_usd) || 0,
+      compare_at_price: prod.compare_at_price ? Number(prod.compare_at_price) : null,
+      compare_at_price_usd: prod.compare_at_price_usd ? Number(prod.compare_at_price_usd) : null,
+      has_discount: Boolean(prod.has_discount || (prod.compare_at_price && prod.compare_at_price > prod.price)),
+      discount_percent: Number(prod.discount_percent) || 0,
+      condition: prod.condition || 'new',
+      device_type: prod.device_type || 'smartphone',
+      images: Array.isArray(prod.images) ? prod.images : [],
+      variants: Array.isArray(prod.variants) ? prod.variants : [],
+      specs: Array.isArray(prod.specs) ? prod.specs : [],
+      stock_quantity: Number(prod.stock_quantity) || 0,
+      is_featured: Boolean(prod.is_featured),
+      is_archived: Boolean(prod.is_archived),
+      rating: Number(prod.rating) || 5,
+      reviews_count: Number(prod.reviews_count) || 0,
+      sku: prod.sku || '',
+      warranty_ar: prod.warranty_ar || 'كفالة الليث',
+      warranty_en: prod.warranty_en || 'Al-Laith Warranty',
+      created_at: prod.created_at || new Date().toISOString()
+    };
+
+    const { error } = await client.from('products').upsert(payload, { onConflict: 'id' });
 
     if (error) {
       console.error('Failed to upsert product to Supabase:', error);
@@ -419,12 +418,12 @@ export async function fetchHeroSlidesFromSupabase(): Promise<HeroSlide[] | null>
       title_en: d.title_en,
       subtitle_ar: d.subtitle_ar || '',
       subtitle_en: d.subtitle_en || '',
-      tag_ar: d.tag_ar || '',
-      tag_en: d.tag_en || '',
+      tag_ar: d.badge_ar || d.tag_ar || '',
+      tag_en: d.badge_en || d.tag_en || '',
       image: d.image_url || d.image,
       button_text_ar: d.button_text_ar || 'تصفح الآن',
       button_text_en: d.button_text_en || 'Shop Now',
-      button_link: d.link || d.button_link || '#catalog'
+      button_link: d.link_target || d.link || d.button_link || 'catalog'
     }));
   } catch {
     return null;
@@ -442,17 +441,23 @@ export async function upsertHeroSlideToSupabase(slide: HeroSlide, index = 0): Pr
         id: slide.id,
         title_ar: slide.title_ar,
         title_en: slide.title_en,
-        subtitle_ar: slide.subtitle_ar,
-        subtitle_en: slide.subtitle_en,
-        tag_ar: slide.tag_ar,
-        tag_en: slide.tag_en,
-        image_url: slide.image,
-        link: slide.button_link,
+        subtitle_ar: slide.subtitle_ar || '',
+        subtitle_en: slide.subtitle_en || '',
+        badge_ar: slide.tag_ar || '',
+        badge_en: slide.tag_en || '',
+        image_url: slide.image || '',
+        link_type: 'custom',
+        link_target: slide.button_link || 'catalog',
+        button_text_ar: slide.button_text_ar || 'تصفح الآن',
+        button_text_en: slide.button_text_en || 'Shop Now',
         sort_order: index,
         is_active: true
       }, { onConflict: 'id' });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error('Failed to upsert hero slide to Supabase:', error);
+      return { success: false, error: error.message };
+    }
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
@@ -613,23 +618,28 @@ export async function upsertOrderToSupabase(order: any): Promise<{ success: bool
       .from('orders')
       .upsert({
         id: order.id,
-        order_number: order.order_number,
-        customer_name: order.customer_name,
-        customer_phone: order.customer_phone,
-        governorate: order.governorate,
-        delivery_address: order.delivery_address,
-        notes: order.notes,
-        items: order.items,
-        subtotal: order.subtotal,
-        delivery_fee: order.delivery_fee,
-        total: order.total,
+        order_number: order.order_number || `ORD-${Date.now().toString().slice(-6)}`,
+        customer_name: order.customer_name || 'عميل',
+        customer_phone: order.customer_phone || order.phone || '',
+        governorate: order.governorate || 'اللاذقية',
+        delivery_address: order.delivery_address || order.address || 'سوريا',
+        notes: order.notes || '',
+        items: Array.isArray(order.items) ? order.items : [],
+        subtotal: Number(order.subtotal) || 0,
+        delivery_fee: Number(order.delivery_fee) || 0,
+        total: Number(order.total) || 0,
         currency: order.currency || 'SYP',
         status: order.status || 'new',
-        google_sheets_synced: order.google_sheets_synced || false,
+        whatsapp_sent: Boolean(order.whatsapp_sent),
+        google_sheets_synced: Boolean(order.google_sheets_synced),
+        synced_to_sheets: Boolean(order.synced_to_sheets),
         created_at: order.created_at || new Date().toISOString()
       }, { onConflict: 'id' });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error('Failed to upsert order to Supabase:', error);
+      return { success: false, error: error.message };
+    }
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
@@ -746,24 +756,28 @@ export async function upsertPhoneRequestToSupabase(req: any): Promise<{ success:
   if (!client) return { success: false, error: 'Supabase client not connected' };
 
   try {
+    const specs = req.specifications || [req.brand, req.model, req.notes_admin || req.notes].filter(Boolean).join(' - ') || 'طلب جهاز مخصص';
     const { error } = await client
       .from('phone_requests')
       .upsert({
         id: req.id,
-        request_number: req.request_number,
-        customer_name: req.customer_name,
-        phone: req.phone,
-        brand: req.brand,
-        model: req.model,
-        color: req.color,
-        storage: req.storage,
-        budget_range: req.budget_range,
+        request_number: req.request_number || `REQ-${Date.now().toString().slice(-6)}`,
+        customer_name: req.customer_name || req.name || 'عميل',
+        phone: req.phone || req.customer_phone || '',
+        address: req.address || req.city || 'اللاذقية',
+        device_type: req.device_type || 'smartphone',
+        specifications: specs,
+        storage: req.storage || req.storage_preference || null,
+        color: req.color || req.color_preference || null,
+        condition: req.condition || 'new',
         status: req.status || 'pending',
-        notes_admin: req.notes_admin,
         created_at: req.created_at || new Date().toISOString()
       }, { onConflict: 'id' });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.error('Failed to upsert phone request to Supabase:', error);
+      return { success: false, error: error.message };
+    }
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };

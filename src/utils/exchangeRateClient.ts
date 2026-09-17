@@ -6,64 +6,85 @@ export const DEFAULT_FALLBACK_RATE: SpTodayExchangeData = {
   city: 'Damascus',
   city_ar: 'دمشق',
   old_lira: {
-    buy: 13375,
-    sell: 13425,
-    formatted_buy: '13,375 ل.س قديمة',
-    formatted_sell: '13,425 ل.س قديمة',
+    buy: 13575,
+    sell: 13650,
+    formatted_buy: '13,575 ل.س قديمة',
+    formatted_sell: '13,650 ل.س قديمة',
     symbol: 'ل.س (قديمة)',
     symbol_en: 'Old SYP'
   },
   new_lira: {
-    buy: 133.75,
-    sell: 134.25,
-    formatted_buy: '133.75 ل.س جديدة',
-    formatted_sell: '134.25 ل.س جديدة',
+    buy: 135.75,
+    sell: 136.50,
+    formatted_buy: '135.75 ل.س جديدة',
+    formatted_sell: '136.50 ل.س جديدة',
     symbol: 'ل.س (جديدة)',
     symbol_en: 'New SYP'
   },
-  change_percent: 0.38,
+  change_percent: 0.74,
   updated_at: new Date().toISOString(),
   fetched_at: new Date().toISOString(),
   cities: {
     damascus: {
       name_ar: 'دمشق',
-      buy: 13375,
-      sell: 13425,
-      change: 0.38,
-      new_buy: 133.75,
-      new_sell: 134.25
+      buy: 13575,
+      sell: 13650,
+      change: 0.74,
+      new_buy: 135.75,
+      new_sell: 136.50
     },
     alhasakah: {
       name_ar: 'الحسكة',
-      buy: 13300,
-      sell: 13350,
-      change: 0,
-      new_buy: 133.00,
-      new_sell: 133.50
+      buy: 13650,
+      sell: 13700,
+      change: 1.68,
+      new_buy: 136.50,
+      new_sell: 137.00
     }
   }
 };
 
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes maximum cache lifetime
+
 /**
- * Fetches real-time Dollar exchange rate from https://sp-today.com/en via server API,
- * with resilient multi-tier fallback mechanisms (server API -> public currency API -> localStorage -> baseline).
+ * Fetches real-time Dollar exchange rate from https://sp-today.com/en via server API (Vercel serverless / Express),
+ * with cache expiration checking and force refresh capability.
  */
-export async function fetchLiveDollarRate(): Promise<SpTodayExchangeData> {
-  // 1. Try server-side endpoint first (/api/exchange-rate)
+export async function fetchLiveDollarRate(forceRefresh = false): Promise<SpTodayExchangeData> {
+  const now = Date.now();
+
+  // If force refresh requested, immediately invalidate browser cache
+  if (forceRefresh) {
+    try {
+      localStorage.removeItem('sptoday_exchange_rate');
+      sessionStorage.removeItem('sptoday_exchange_rate');
+    } catch {
+      // ignore
+    }
+  }
+
+  // 1. Try server-side endpoint first (/api/exchange-rate) with cache-busting timestamp
   try {
-    const res = await fetch('/api/exchange-rate', {
+    const queryParam = forceRefresh ? `?refresh=1&_t=${now}` : `?_t=${now}`;
+    const res = await fetch(`/api/exchange-rate${queryParam}`, {
+      cache: 'no-store',
       headers: {
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Pragma': 'no-cache'
       }
     });
 
     const contentType = res.headers.get('content-type') || '';
     if (res.ok && contentType.includes('application/json')) {
       const data = await res.json();
-      if (data && (data.success || data.currency === 'USD') && data.old_lira && data.new_lira) {
+      if (data && (data.success || data.currency === 'USD') && data.old_lira && data.new_lira && data.old_lira.sell > 0) {
+        const payloadToCache = {
+          ...data,
+          cached_at: now
+        };
         try {
-          localStorage.setItem('sptoday_exchange_rate', JSON.stringify(data));
-          sessionStorage.setItem('sptoday_exchange_rate', JSON.stringify(data));
+          localStorage.setItem('sptoday_exchange_rate', JSON.stringify(payloadToCache));
+          sessionStorage.setItem('sptoday_exchange_rate', JSON.stringify(payloadToCache));
         } catch {
           // ignore storage error
         }
@@ -74,84 +95,29 @@ export async function fetchLiveDollarRate(): Promise<SpTodayExchangeData> {
     console.warn('Could not fetch from /api/exchange-rate (server route unreachable or static host):', err);
   }
 
-  // 2. Try localStorage & sessionStorage cache
-  try {
-    const cached = localStorage.getItem('sptoday_exchange_rate') || sessionStorage.getItem('sptoday_exchange_rate');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.old_lira && parsed.new_lira && parsed.old_lira.sell > 0) {
-        return {
-          ...parsed,
-          fetched_at: new Date().toISOString()
-        } as SpTodayExchangeData;
+  // 2. Try localStorage & sessionStorage cache ONLY if NOT force-refreshing AND still within TTL (3 mins)
+  if (!forceRefresh) {
+    try {
+      const cached = localStorage.getItem('sptoday_exchange_rate') || sessionStorage.getItem('sptoday_exchange_rate');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const cachedAt = Number(parsed.cached_at) || 0;
+        const isFresh = now - cachedAt < CACHE_TTL_MS;
+
+        // Reject stale cache older than 3 minutes to prevent outdated rate display
+        if (isFresh && parsed && parsed.old_lira && parsed.new_lira && parsed.old_lira.sell > 0) {
+          return {
+            ...parsed,
+            fetched_at: new Date().toISOString()
+          } as SpTodayExchangeData;
+        }
       }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
-  // 3. Try client-side backup from free public exchange rate provider if on static deployment
-  try {
-    const backupRes = await fetch('https://open.er-api.com/v6/latest/USD', {
-      signal: AbortSignal.timeout ? AbortSignal.timeout(3500) : undefined
-    });
-    if (backupRes.ok) {
-      const json = await backupRes.json();
-      const syp = json?.rates?.SYP;
-      if (typeof syp === 'number' && syp > 1000) {
-        const oldSell = Math.round(syp);
-        const oldBuy = Math.round(syp * 0.996);
-        const newSell = Number((oldSell / 100).toFixed(2));
-        const newBuy = Number((oldBuy / 100).toFixed(2));
-
-        const derivedData: SpTodayExchangeData = {
-          currency: 'USD',
-          source: 'https://sp-today.com/en',
-          city: 'Damascus',
-          city_ar: 'دمشق',
-          old_lira: {
-            buy: oldBuy,
-            sell: oldSell,
-            formatted_buy: `${oldBuy.toLocaleString()} ل.س قديمة`,
-            formatted_sell: `${oldSell.toLocaleString()} ل.س قديمة`,
-            symbol: 'ل.س (قديمة)',
-            symbol_en: 'Old SYP'
-          },
-          new_lira: {
-            buy: newBuy,
-            sell: newSell,
-            formatted_buy: `${newBuy.toLocaleString()} ل.س جديدة`,
-            formatted_sell: `${newSell.toLocaleString()} ل.س جديدة`,
-            symbol: 'ل.س (جديدة)',
-            symbol_en: 'New SYP'
-          },
-          change_percent: 0.35,
-          updated_at: new Date().toISOString(),
-          fetched_at: new Date().toISOString(),
-          cities: {
-            damascus: {
-              name_ar: 'دمشق',
-              buy: oldBuy,
-              sell: oldSell,
-              change: 0.35,
-              new_buy: newBuy,
-              new_sell: newSell
-            }
-          }
-        };
-
-        try {
-          localStorage.setItem('sptoday_exchange_rate', JSON.stringify(derivedData));
-        } catch {}
-
-        return derivedData;
-      }
-    }
-  } catch (err) {
-    console.warn('Backup public rate fetch failed or timed out:', err);
-  }
-
-  // 4. Return robust Syrian market baseline
+  // 3. Return Syrian market baseline with current timestamp
   return {
     ...DEFAULT_FALLBACK_RATE,
     fetched_at: new Date().toISOString(),

@@ -40,40 +40,40 @@ export const CURRENT_MARKET_BASELINE: SpTodayExchangeData = {
   city: 'Damascus',
   city_ar: 'دمشق',
   old_lira: {
-    buy: 13375,
-    sell: 13425,
-    formatted_buy: '13,375 ل.س قديمة',
-    formatted_sell: '13,425 ل.س قديمة',
+    buy: 13575,
+    sell: 13650,
+    formatted_buy: '13,575 ل.س قديمة',
+    formatted_sell: '13,650 ل.س قديمة',
     symbol: 'ل.س (قديمة)',
     symbol_en: 'Old SYP'
   },
   new_lira: {
-    buy: 133.75,
-    sell: 134.25,
-    formatted_buy: '133.75 ل.س جديدة',
-    formatted_sell: '134.25 ل.س جديدة',
+    buy: 135.75,
+    sell: 136.50,
+    formatted_buy: '135.75 ل.س جديدة',
+    formatted_sell: '136.50 ل.س جديدة',
     symbol: 'ل.س (جديدة)',
     symbol_en: 'New SYP'
   },
-  change_percent: 0.38,
+  change_percent: 0.74,
   updated_at: new Date().toISOString(),
   fetched_at: new Date().toISOString(),
   cities: {
     damascus: {
       name_ar: 'دمشق',
-      buy: 13375,
-      sell: 13425,
-      change: 0.38,
-      new_buy: 133.75,
-      new_sell: 134.25
+      buy: 13575,
+      sell: 13650,
+      change: 0.74,
+      new_buy: 135.75,
+      new_sell: 136.50
     },
     alhasakah: {
       name_ar: 'الحسكة',
-      buy: 13300,
-      sell: 13350,
-      change: 0,
-      new_buy: 133.00,
-      new_sell: 133.50
+      buy: 13650,
+      sell: 13700,
+      change: 1.68,
+      new_buy: 136.50,
+      new_sell: 137.00
     }
   }
 };

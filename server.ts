@@ -80,8 +80,13 @@ ${defaultSlugs.map(slug => `  <url>
   // API endpoint: Real-time Dollar exchange rate from sp-today.com
   app.get('/api/exchange-rate', async (req, res) => {
     try {
+      const isForce = req.query.refresh === '1' || req.query.force === 'true';
       const data = await fetchSpTodayRates();
-      res.setHeader('Cache-Control', 'public, max-age=60'); // cache 1 min
+      if (isForce) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      } else {
+        res.setHeader('Cache-Control', 'public, max-age=60');
+      }
       return res.json({
         success: true,
         ...data

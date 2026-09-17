@@ -83,7 +83,7 @@ interface StoreContextType {
   exchangeRateData: SpTodayExchangeData | null;
   isExchangeRateLoading: boolean;
   exchangeRateError: string | null;
-  refreshExchangeRate: () => Promise<void>;
+  refreshExchangeRate: (force?: boolean) => Promise<void>;
   isExchangeModalOpen: boolean;
   setIsExchangeModalOpen: (open: boolean) => void;
   liraDisplayMode: LiraDisplayMode;
@@ -246,7 +246,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [lastSynced, setLastSynced] = useState<Date | null>(new Date());
   const [lastSyncStatus, setLastSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
 
-  const onDatabaseSynced = useCallback(() => {
+  const onDatabaseSynced = useCallback((result?: any) => {
+    if (result && result.success === false) {
+      console.warn('Database sync reported error:', result.error);
+      setLastSyncStatus('error');
+      return;
+    }
     setLastSynced(new Date());
     setLastSyncStatus('synced');
   }, []);
@@ -484,11 +489,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('allaith_lira_mode', mode);
   };
 
-  const refreshExchangeRate = useCallback(async () => {
+  const refreshExchangeRate = useCallback(async (force = false) => {
     setIsExchangeRateLoading(true);
     setExchangeRateError(null);
     try {
-      const data = await fetchLiveDollarRate();
+      const data = await fetchLiveDollarRate(force);
       setExchangeRateData(data);
       if (data && data.old_lira && data.old_lira.sell > 0) {
         setStoreSettings((prev) => ({
@@ -612,7 +617,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       created_at: new Date().toISOString()
     };
     setProducts((prev) => [newProduct, ...prev]);
-    upsertProductToSupabase(newProduct).then(onDatabaseSynced).catch(onDatabaseSyncError);
+    upsertProductToSupabase(newProduct)
+      .then((res) => {
+        if (res.success) {
+          onDatabaseSynced(res);
+        } else {
+          onDatabaseSyncError(res.error);
+          console.error('Supabase product sync error:', res.error);
+        }
+      })
+      .catch(onDatabaseSyncError);
     showToast(t('product_saved'));
   };
 
@@ -628,7 +642,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           merged.has_discount = true;
           merged.discount_percent = Math.round(((merged.compare_at_price_usd - merged.price_usd) / merged.compare_at_price_usd) * 100);
         }
-        upsertProductToSupabase(merged).then(onDatabaseSynced).catch(onDatabaseSyncError);
+        upsertProductToSupabase(merged)
+          .then((res) => {
+            if (res.success) {
+              onDatabaseSynced(res);
+            } else {
+              onDatabaseSyncError(res.error);
+              console.error('Supabase product update error:', res.error);
+            }
+          })
+          .catch(onDatabaseSyncError);
         return merged;
       })
     );

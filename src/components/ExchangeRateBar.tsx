@@ -100,7 +100,7 @@ export const ExchangeRateBar: React.FC = () => {
             id="exchange-bar-refresh-button"
             onClick={(e) => {
               e.stopPropagation();
-              refreshExchangeRate();
+              refreshExchangeRate(true);
             }}
             disabled={isExchangeRateLoading}
             title={isAr ? 'تحديث سعر الصرف' : 'Refresh Exchange Rate'}

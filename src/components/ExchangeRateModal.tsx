@@ -119,7 +119,7 @@ export const ExchangeRateModal: React.FC = () => {
           <div className="flex items-center gap-2">
             <button
               id="refresh-rate-button"
-              onClick={refreshExchangeRate}
+              onClick={() => refreshExchangeRate(true)}
               disabled={isExchangeRateLoading}
               title={t('refresh_rate')}
               className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
