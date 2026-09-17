@@ -115,16 +115,16 @@ export const HomepageContentView: React.FC = () => {
   const handleOpenEditSlide = (slide: HeroSlide) => {
     setEditingSlide(slide);
     setSlideForm({
-      title_ar: slide.title_ar,
-      title_en: slide.title_en,
-      subtitle_ar: slide.subtitle_ar,
-      subtitle_en: slide.subtitle_en,
-      tag_ar: slide.tag_ar,
-      tag_en: slide.tag_en,
-      button_text_ar: slide.button_text_ar,
-      button_text_en: slide.button_text_en,
-      image: slide.image,
-      button_link: slide.button_link
+      title_ar: slide.title_ar || '',
+      title_en: slide.title_en || '',
+      subtitle_ar: slide.subtitle_ar || '',
+      subtitle_en: slide.subtitle_en || '',
+      tag_ar: slide.tag_ar || '',
+      tag_en: slide.tag_en || '',
+      button_text_ar: slide.button_text_ar || '',
+      button_text_en: slide.button_text_en || '',
+      image: slide.image || '',
+      button_link: slide.button_link || '#catalog'
     });
     setIsSlideModalOpen(true);
   };
@@ -327,7 +327,7 @@ export const HomepageContentView: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settingsForm.announcement_ar}
+                value={settingsForm.announcement_ar ?? ''}
                 onChange={(e) => setSettingsForm({ ...settingsForm, announcement_ar: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -338,7 +338,7 @@ export const HomepageContentView: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settingsForm.announcement_en}
+                value={settingsForm.announcement_en ?? ''}
                 onChange={(e) => setSettingsForm({ ...settingsForm, announcement_en: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl bg-white border border-amber-300 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
@@ -354,7 +354,7 @@ export const HomepageContentView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settingsForm.site_name_ar}
+              value={settingsForm.site_name_ar ?? ''}
               onChange={(e) => setSettingsForm({ ...settingsForm, site_name_ar: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
@@ -366,7 +366,7 @@ export const HomepageContentView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settingsForm.site_name_en}
+              value={settingsForm.site_name_en ?? ''}
               onChange={(e) => setSettingsForm({ ...settingsForm, site_name_en: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
@@ -498,7 +498,7 @@ export const HomepageContentView: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settingsForm.store_address_ar}
+                value={settingsForm.store_address_ar ?? ''}
                 onChange={(e) => setSettingsForm({ ...settingsForm, store_address_ar: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
               />
@@ -510,7 +510,7 @@ export const HomepageContentView: React.FC = () => {
               </label>
               <input
                 type="text"
-                value={settingsForm.store_address_en}
+                value={settingsForm.store_address_en ?? ''}
                 onChange={(e) => setSettingsForm({ ...settingsForm, store_address_en: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
               />
@@ -525,7 +525,7 @@ export const HomepageContentView: React.FC = () => {
               <input
                 type="number"
                 step="any"
-                value={settingsForm.store_lat}
+                value={settingsForm.store_lat ?? 35.524917}
                 onChange={(e) => setSettingsForm({ ...settingsForm, store_lat: Number(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
               />
@@ -538,7 +538,7 @@ export const HomepageContentView: React.FC = () => {
               <input
                 type="number"
                 step="any"
-                value={settingsForm.store_lng}
+                value={settingsForm.store_lng ?? 35.852556}
                 onChange={(e) => setSettingsForm({ ...settingsForm, store_lng: Number(e.target.value) })}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
               />
@@ -566,7 +566,7 @@ export const HomepageContentView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settingsForm.whatsapp_number}
+              value={settingsForm.whatsapp_number ?? ''}
               onChange={(e) => setSettingsForm({ ...settingsForm, whatsapp_number: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
@@ -578,7 +578,7 @@ export const HomepageContentView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settingsForm.maintenance_whatsapp}
+              value={settingsForm.maintenance_whatsapp ?? ''}
               onChange={(e) => setSettingsForm({ ...settingsForm, maintenance_whatsapp: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
@@ -590,7 +590,7 @@ export const HomepageContentView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={settingsForm.store_hours_ar}
+              value={settingsForm.store_hours_ar ?? ''}
               onChange={(e) => setSettingsForm({ ...settingsForm, store_hours_ar: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
@@ -626,7 +626,7 @@ export const HomepageContentView: React.FC = () => {
                   <input
                     type="text"
                     required
-                    value={slideForm.title_ar}
+                    value={slideForm.title_ar ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, title_ar: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
@@ -637,7 +637,7 @@ export const HomepageContentView: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={slideForm.title_en}
+                    value={slideForm.title_en ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, title_en: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
@@ -651,7 +651,7 @@ export const HomepageContentView: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={slideForm.subtitle_ar}
+                    value={slideForm.subtitle_ar ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, subtitle_ar: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
@@ -662,7 +662,7 @@ export const HomepageContentView: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={slideForm.subtitle_en}
+                    value={slideForm.subtitle_en ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, subtitle_en: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
@@ -696,7 +696,7 @@ export const HomepageContentView: React.FC = () => {
                 <input
                   type="text"
                   required
-                  value={slideForm.image}
+                  value={slideForm.image ?? ''}
                   onChange={(e) => setSlideForm({ ...slideForm, image: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   placeholder="https://... أو اختر رفع صورة من جهازك"
@@ -731,7 +731,7 @@ export const HomepageContentView: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={slideForm.tag_ar}
+                    value={slideForm.tag_ar ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, tag_ar: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     placeholder="خصومات موسمية"
@@ -743,7 +743,7 @@ export const HomepageContentView: React.FC = () => {
                   </label>
                   <input
                     type="text"
-                    value={slideForm.button_link}
+                    value={slideForm.button_link ?? ''}
                     onChange={(e) => setSlideForm({ ...slideForm, button_link: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                     placeholder="#catalog"

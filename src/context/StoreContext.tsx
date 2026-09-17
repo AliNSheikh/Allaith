@@ -139,6 +139,7 @@ interface StoreContextType {
   visitorStats: VisitorStatDay[];
   analyticsVisits: AnalyticsVisitRecord[];
   trackVisit: (path: string, pageTitle?: string) => void;
+  resetAnalyticsData: () => Promise<void>;
   saveAllDataToSupabase: () => Promise<{ success: boolean; message: string }>;
   generateSitemapXml: () => string;
   generateRobotsTxt: () => string;
@@ -1038,39 +1039,29 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Visitor Analytics & Permanent Visit Logs
   const [visitorStats] = useState<VisitorStatDay[]>(() => {
-    try {
-      const saved = localStorage.getItem('allaith_visitor_stats');
-      return saved ? JSON.parse(saved) : initialVisitorStats;
-    } catch {
-      return initialVisitorStats;
-    }
+    return [];
   });
 
   const [analyticsVisits, setAnalyticsVisits] = useState<AnalyticsVisitRecord[]>(() => {
     try {
-      const saved = localStorage.getItem('allaith_analytics_visits');
-      if (saved) return JSON.parse(saved);
-      // Realistic pre-seeded visit records across various timeframes
-      const seeds: AnalyticsVisitRecord[] = [];
-      const now = Date.now();
-      const mockPaths = ['/', '/catalog', '/offers', '/category/smartphones', '/category/appliances', '/product/apple-iphone-16-pro-max', '/product/samsung-galaxy-s24-ultra'];
-      const referrers = ['Google Search', 'Direct URL', 'Instagram', 'Facebook', 'Telegram'];
-      const devices: ('desktop' | 'mobile' | 'tablet')[] = ['mobile', 'mobile', 'desktop', 'desktop', 'tablet'];
-
-      for (let i = 0; i < 48; i++) {
-        const timeAgoMs = Math.floor(Math.random() * 25 * 86400000);
-        seeds.push({
-          id: `vis_${Date.now() - timeAgoMs}_${i}`,
-          timestamp: new Date(now - timeAgoMs).toISOString(),
-          path: mockPaths[i % mockPaths.length],
-          page_title: i % 2 === 0 ? 'متجر الليث للاتصالات' : 'Al-Laith Catalog',
-          referrer: referrers[i % referrers.length],
-          device: devices[i % devices.length],
-          visitor_id: `user_${(i % 12) + 1}`,
-          duration_seconds: Math.floor(Math.random() * 180) + 15
-        });
+      // Versioned reset flag to clear past mock/pre-seeded records once and for all
+      const hasReset = localStorage.getItem('allaith_analytics_reset_clean_2026');
+      if (!hasReset) {
+        localStorage.removeItem('allaith_analytics_visits');
+        localStorage.removeItem('allaith_visitor_stats');
+        localStorage.setItem('allaith_analytics_reset_clean_2026', 'true');
+        return [];
       }
-      return seeds;
+
+      const saved = localStorage.getItem('allaith_analytics_visits');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Discard any residual mock records that used user_# IDs
+          return parsed.filter((r: any) => !r.visitor_id?.startsWith('user_'));
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -1080,26 +1071,76 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     localStorage.setItem('allaith_analytics_visits', JSON.stringify(analyticsVisits));
   }, [analyticsVisits]);
 
+  // Sync real visits from server on load
+  useEffect(() => {
+    fetch('/api/analytics/summary')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && Array.isArray(data.visits) && data.visits.length > 0) {
+          setAnalyticsVisits((prev) => {
+            const existingIds = new Set(prev.map((v) => v.id));
+            const newServerVisits = data.visits.filter((v: AnalyticsVisitRecord) => !existingIds.has(v.id));
+            if (newServerVisits.length === 0) return prev;
+            const combined = [...prev, ...newServerVisits].sort(
+              (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+            return combined.slice(0, 2000);
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const trackVisit = useCallback((visitPath: string, pageTitle?: string) => {
+    // Avoid counting internal admin control panel visits as customer visits
+    if (!visitPath || visitPath.startsWith('/admin')) {
+      return;
+    }
+
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    let detectedDevice: 'mobile' | 'desktop' | 'tablet' = 'desktop';
+    if (typeof window !== 'undefined') {
+      if (/iPad|Tablet/i.test(ua) || (window.innerWidth >= 640 && window.innerWidth < 1024)) {
+        detectedDevice = 'tablet';
+      } else if (/Mobi|Android|iPhone|iPod/i.test(ua) || window.innerWidth < 640) {
+        detectedDevice = 'mobile';
+      }
+    }
+
+    let detectedReferrer = 'Direct';
+    if (typeof document !== 'undefined' && document.referrer) {
+      try {
+        const refUrl = new URL(document.referrer);
+        if (refUrl.origin !== window.location.origin) {
+          detectedReferrer = refUrl.hostname.replace(/^www\./, '');
+        }
+      } catch {
+        detectedReferrer = 'Direct';
+      }
+    }
+
+    let visitorId = 'u_guest';
+    if (typeof window !== 'undefined') {
+      let vid = localStorage.getItem('allaith_visitor_uid');
+      if (!vid) {
+        vid = 'v_' + Math.random().toString(36).substring(2, 9);
+        localStorage.setItem('allaith_visitor_uid', vid);
+      }
+      visitorId = vid;
+    }
+
     const newRecord: AnalyticsVisitRecord = {
       id: `v_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       timestamp: new Date().toISOString(),
       path: visitPath,
       page_title: pageTitle || 'Al-Laith Telecom',
-      referrer: typeof document !== 'undefined' && document.referrer ? (new URL(document.referrer, window.location.origin).hostname || 'Direct') : 'Direct',
-      device: typeof window !== 'undefined' ? (window.innerWidth < 640 ? 'mobile' : window.innerWidth < 1024 ? 'tablet' : 'desktop') : 'desktop',
-      visitor_id: (() => {
-        let vid = localStorage.getItem('allaith_visitor_uid');
-        if (!vid) {
-          vid = 'u_' + Math.random().toString(36).substring(2, 9);
-          localStorage.setItem('allaith_visitor_uid', vid);
-        }
-        return vid;
-      })(),
+      referrer: detectedReferrer,
+      device: detectedDevice,
+      visitor_id: visitorId,
       duration_seconds: 45
     };
 
-    setAnalyticsVisits((prev) => [newRecord, ...prev.slice(0, 1500)]);
+    setAnalyticsVisits((prev) => [newRecord, ...prev.slice(0, 1999)]);
 
     // Send to backend
     fetch('/api/analytics/track', {
@@ -1108,6 +1149,23 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       body: JSON.stringify(newRecord)
     }).catch(() => {});
   }, []);
+
+  // Delete & Reset Analytics & Visit Data
+  const resetAnalyticsData = useCallback(async () => {
+    setAnalyticsVisits([]);
+    try {
+      localStorage.removeItem('allaith_analytics_visits');
+      localStorage.removeItem('allaith_visitor_stats');
+      localStorage.setItem('allaith_analytics_reset_clean_2026', 'true');
+
+      // Reset backend in-memory log
+      await fetch('/api/analytics/reset', { method: 'POST' }).catch(() => {});
+
+      showToast(locale === 'ar' ? 'تم تصفير وحذف كافة بيانات الزيارات بنجاح، وبدء التتبع من الآن' : 'Analytics reset. Live tracking active from now on.');
+    } catch (err) {
+      console.error('Error resetting analytics:', err);
+    }
+  }, [locale, showToast]);
 
   // Supabase Database Full Sync
   const saveAllDataToSupabase = async (): Promise<{ success: boolean; message: string }> => {
@@ -2063,6 +2121,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         visitorStats,
         analyticsVisits,
         trackVisit,
+        resetAnalyticsData,
         saveAllDataToSupabase,
         generateSitemapXml,
         generateRobotsTxt,

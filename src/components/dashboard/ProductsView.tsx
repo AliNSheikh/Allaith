@@ -238,26 +238,26 @@ export const ProductsView: React.FC = () => {
   // Open modal for Edit
   const handleOpenEditModal = (product: Product) => {
     setEditingProduct(product);
-    const hasPromo = (product.discount_percent || 0) > 0 || ((product.compare_at_price || 0) > product.price);
+    const hasPromo = (product.discount_percent || 0) > 0 || ((product.compare_at_price || 0) > (product.price || 0));
     setFormData({
-      title_ar: product.title_ar,
-      title_en: product.title_en,
+      title_ar: product.title_ar || '',
+      title_en: product.title_en || '',
       slug: product.slug || '',
       description_ar: product.description_ar || '',
       description_en: product.description_en || '',
-      price: product.price,
-      price_usd: product.price_usd || Math.round(product.price / (storeSettings.usd_exchange_rate || 15000)),
+      price: product.price || 0,
+      price_usd: product.price_usd || Math.round((product.price || 0) / (storeSettings.usd_exchange_rate || 15000)),
       compare_at_price: product.compare_at_price || 0,
       discount_percent: product.discount_percent || 0,
       is_promotion: hasPromo,
-      category_id: product.category_id,
-      brand: product.brand,
+      category_id: product.category_id || categories[0]?.id || '',
+      brand: product.brand || brands[0] || 'Apple',
       images: product.images && product.images.length > 0 ? [...product.images] : [''],
       condition: product.condition || 'new',
       condition_details: product.condition_details || '',
-      stock_quantity: product.stock_quantity,
-      sku: product.sku,
-      is_featured: product.is_featured,
+      stock_quantity: product.stock_quantity ?? 0,
+      sku: product.sku || '',
+      is_featured: !!product.is_featured,
       is_new: !!product.is_new,
       warranty_ar: product.warranty_ar || '',
       variant_combinations: product.variant_combinations || [],
@@ -994,7 +994,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.title_ar}
+                      value={formData.title_ar ?? ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         setFormData((prev) => ({
@@ -1014,7 +1014,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={formData.title_en}
+                      value={formData.title_en ?? ''}
                       onChange={(e) => {
                         const val = e.target.value;
                         setFormData((prev) => ({
@@ -1051,7 +1051,7 @@ export const ProductsView: React.FC = () => {
                     </span>
                     <input
                       type="text"
-                      value={formData.slug}
+                      value={formData.slug ?? ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
                       placeholder="iphone-16-pro-max"
                       className="flex-1 px-2.5 py-1 rounded-lg bg-white border border-amber-300 font-mono text-xs text-stone-900 outline-none focus:ring-2 focus:ring-amber-500"
@@ -1095,7 +1095,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <textarea
                       rows={3}
-                      value={formData.description_ar}
+                      value={formData.description_ar ?? ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, description_ar: e.target.value }))}
                       placeholder={isAr ? 'أدخل شرحاً مفصلاً عن المنتج، حالته، ملحقاته ومميزاته التقنية لزبائن المتجر...' : 'Enter Arabic product description and features...'}
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs text-stone-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y font-medium"
@@ -1108,7 +1108,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <textarea
                       rows={2}
-                      value={formData.description_en}
+                      value={formData.description_en ?? ''}
                       onChange={(e) => setFormData((prev) => ({ ...prev, description_en: e.target.value }))}
                       placeholder="Enter detailed English description, specifications overview, and highlights..."
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs text-stone-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y font-medium"
@@ -1218,7 +1218,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      value={formData.price}
+                      value={formData.price ?? 0}
                       onChange={(e) => handlePriceChange(Number(e.target.value))}
                       required
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
@@ -1231,7 +1231,7 @@ export const ProductsView: React.FC = () => {
                     </label>
                     <input
                       type="number"
-                      value={formData.price_usd}
+                      value={formData.price_usd ?? 0}
                       onChange={(e) => setFormData((prev) => ({ ...prev, price_usd: Number(e.target.value) }))}
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
@@ -1332,7 +1332,7 @@ export const ProductsView: React.FC = () => {
                     <div key={comb.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-white p-2.5 rounded-xl border border-stone-200 text-xs">
                       <input
                         type="text"
-                        value={comb.combination_name_ar}
+                        value={comb.combination_name_ar ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormData(prev => ({
@@ -1345,7 +1345,7 @@ export const ProductsView: React.FC = () => {
                       />
                       <input
                         type="number"
-                        value={comb.price}
+                        value={comb.price ?? 0}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           setFormData(prev => ({
@@ -1358,7 +1358,7 @@ export const ProductsView: React.FC = () => {
                       />
                       <input
                         type="number"
-                        value={comb.stock_quantity}
+                        value={comb.stock_quantity ?? 0}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           setFormData(prev => ({
@@ -1372,7 +1372,7 @@ export const ProductsView: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
-                          value={comb.sku}
+                          value={comb.sku ?? ''}
                           onChange={(e) => {
                             const val = e.target.value;
                             setFormData(prev => ({
@@ -1425,7 +1425,7 @@ export const ProductsView: React.FC = () => {
                     <div key={sp.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 bg-white p-2 rounded-xl border border-stone-200 text-xs">
                       <input
                         type="text"
-                        value={sp.key_ar}
+                        value={sp.key_ar ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormData(prev => ({
@@ -1438,7 +1438,7 @@ export const ProductsView: React.FC = () => {
                       />
                       <input
                         type="text"
-                        value={sp.value_ar}
+                        value={sp.value_ar ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormData(prev => ({
@@ -1451,7 +1451,7 @@ export const ProductsView: React.FC = () => {
                       />
                       <input
                         type="text"
-                        value={sp.value_en}
+                        value={sp.value_en ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
                           setFormData(prev => ({
@@ -1542,7 +1542,7 @@ export const ProductsView: React.FC = () => {
                     <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'الكمية في المخزن' : 'Stock Quantity'}</label>
                     <input
                       type="number"
-                      value={formData.stock_quantity}
+                      value={formData.stock_quantity ?? 0}
                       onChange={(e) => setFormData(prev => ({ ...prev, stock_quantity: Number(e.target.value) }))}
                       className="w-full px-3 py-2 rounded-xl bg-white border border-stone-200 font-mono text-xs font-semibold"
                     />
@@ -1559,7 +1559,7 @@ export const ProductsView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
-                        value={formData.sku}
+                        value={formData.sku ?? ''}
                         onChange={(e) => setFormData(prev => ({ ...prev, sku: e.target.value.toUpperCase() }))}
                         placeholder="e.g. LTH-APL-SMART-4821"
                         className="flex-1 px-3 py-2 rounded-xl bg-white border border-stone-300 font-mono font-black text-xs text-stone-900 tracking-wider focus:outline-none focus:ring-2 focus:ring-emerald-500"

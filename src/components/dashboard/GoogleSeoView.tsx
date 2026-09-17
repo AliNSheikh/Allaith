@@ -192,7 +192,7 @@ export const GoogleSeoView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={formSettings.google_analytics_id}
+              value={formSettings.google_analytics_id ?? ''}
               onChange={(e) => setFormSettings({ ...formSettings, google_analytics_id: e.target.value })}
               className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="G-L8THSYRIA26"
@@ -210,7 +210,7 @@ export const GoogleSeoView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={formSettings.google_search_console_tag}
+              value={formSettings.google_search_console_tag ?? ''}
               onChange={(e) => setFormSettings({ ...formSettings, google_search_console_tag: e.target.value })}
               className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="google-site-verification=..."
@@ -228,7 +228,7 @@ export const GoogleSeoView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={formSettings.google_ads_id}
+              value={formSettings.google_ads_id ?? ''}
               onChange={(e) => setFormSettings({ ...formSettings, google_ads_id: e.target.value })}
               className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="AW-987654321"
@@ -246,7 +246,7 @@ export const GoogleSeoView: React.FC = () => {
             </label>
             <input
               type="text"
-              value={formSettings.google_adsense_client}
+              value={formSettings.google_adsense_client ?? ''}
               onChange={(e) => setFormSettings({ ...formSettings, google_adsense_client: e.target.value })}
               className="w-full px-3 py-2 rounded-xl bg-white border border-stone-300 text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="ca-pub-9988776655443322"

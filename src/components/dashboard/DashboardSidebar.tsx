@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -49,11 +49,23 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
     exitAdminPortal,
     orders,
     products,
-    activeStaffRole
+    activeStaffRole,
+    analyticsVisits
   } = useStore();
 
   const isAr = locale === 'ar';
   const newOrdersCount = orders.filter((o) => o.status === 'new').length;
+
+  // Real live online visitors calculated from recent activity (last 15 min)
+  const liveOnlineCount = useMemo(() => {
+    const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
+    const recentUnique = new Set(
+      analyticsVisits
+        .filter((v) => new Date(v.timestamp).getTime() >= fifteenMinAgo)
+        .map((v) => v.visitor_id)
+    );
+    return Math.max(recentUnique.size, 1);
+  }, [analyticsVisits]);
 
   const navItems: {
     id: DashboardTab;
@@ -178,7 +190,7 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
             </span>
           </div>
           <span className="font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded-md text-[11px] border border-emerald-800/50">
-            {isAr ? '18 متصل' : '18 online'}
+            {liveOnlineCount} {isAr ? 'متصل' : 'online'}
           </span>
         </div>
 

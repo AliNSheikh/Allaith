@@ -83,9 +83,9 @@ export const CategoriesBrandsView: React.FC = () => {
   const handleOpenEditCategory = (cat: Category) => {
     setEditingCategory(cat);
     setCatForm({
-      name_ar: cat.name_ar,
-      name_en: cat.name_en,
-      slug: cat.slug,
+      name_ar: cat.name_ar || '',
+      name_en: cat.name_en || '',
+      slug: cat.slug || '',
       image_url: cat.image_url || '',
       icon_name: cat.icon_name || 'smartphone'
     });
@@ -464,7 +464,7 @@ export const CategoriesBrandsView: React.FC = () => {
                 <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'اسم الفئة بالعربية *' : 'Name (Arabic) *'}</label>
                 <input
                   type="text"
-                  value={catForm.name_ar}
+                  value={catForm.name_ar ?? ''}
                   onChange={(e) => {
                     const val = e.target.value;
                     setCatForm(prev => ({
@@ -483,7 +483,7 @@ export const CategoriesBrandsView: React.FC = () => {
                 <label className="block text-xs font-bold text-stone-700 mb-1">{isAr ? 'اسم الفئة بالإنجليزية' : 'Name (English)'}</label>
                 <input
                   type="text"
-                  value={catForm.name_en}
+                  value={catForm.name_en ?? ''}
                   onChange={(e) => {
                     const val = e.target.value;
                     setCatForm(prev => ({
@@ -515,11 +515,11 @@ export const CategoriesBrandsView: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] font-mono text-stone-500 shrink-0 select-none">
-                    #category/
+                     #category/
                   </span>
                   <input
                     type="text"
-                    value={catForm.slug}
+                    value={catForm.slug ?? ''}
                     onChange={(e) => setCatForm(prev => ({ ...prev, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') }))}
                     placeholder="smartphones"
                     className="flex-1 px-2.5 py-1.5 rounded-lg bg-white border border-amber-300 font-mono text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -555,7 +555,7 @@ export const CategoriesBrandsView: React.FC = () => {
                   </label>
                   <input
                     type="url"
-                    value={catForm.image_url}
+                    value={catForm.image_url ?? ''}
                     onChange={(e) => setCatForm(prev => ({ ...prev, image_url: e.target.value }))}
                     placeholder="https://..."
                     className="w-full px-3 py-2 rounded-xl bg-stone-50 border border-stone-200 text-xs"

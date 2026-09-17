@@ -221,13 +221,24 @@ Return a valid JSON object strictly matching this schema:
     };
     storedVisits.push(visit);
     if (storedVisits.length > 5000) storedVisits.shift(); // Keep last 5000 in memory
-    return res.json({ success: true, count: storedVisits.length });
+    return res.json({ success: true, count: storedVisits.length, visit });
+  });
+
+  // API endpoint: Reset analytics visits
+  app.post('/api/analytics/reset', (req, res) => {
+    storedVisits.length = 0;
+    return res.json({
+      success: true,
+      count: 0,
+      reset_at: new Date().toISOString(),
+      message: 'All analytics and visit logs have been reset to zero.'
+    });
   });
 
   app.get('/api/analytics/summary', (req, res) => {
     return res.json({
       total_visits: storedVisits.length,
-      visits: storedVisits.slice(-200)
+      visits: storedVisits.slice(-500)
     });
   });
 

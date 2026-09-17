@@ -159,7 +159,7 @@ export const IntegrationsView: React.FC = () => {
             <div className="relative flex-1">
               <input
                 type="number"
-                value={formSettings.usd_exchange_rate}
+                value={formSettings.usd_exchange_rate ?? 15000}
                 onChange={(e) => setFormSettings({ ...formSettings, usd_exchange_rate: Number(e.target.value) })}
                 className="w-full px-4 py-2.5 rounded-xl border border-emerald-300 font-mono font-black text-base text-stone-900 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               />
@@ -205,7 +205,7 @@ export const IntegrationsView: React.FC = () => {
               </label>
               <input
                 type="url"
-                value={formSettings.supabase_url}
+                value={formSettings.supabase_url ?? ''}
                 onChange={(e) => setFormSettings({ ...formSettings, supabase_url: e.target.value })}
                 className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 placeholder="https://xyzproject.supabase.co"
@@ -219,7 +219,7 @@ export const IntegrationsView: React.FC = () => {
               <div className="relative">
                 <input
                   type="password"
-                  value={formSettings.supabase_anon_key}
+                  value={formSettings.supabase_anon_key ?? ''}
                   onChange={(e) => setFormSettings({ ...formSettings, supabase_anon_key: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   placeholder="eyJhbGciOiJIUzI1NiIsIn..."
@@ -358,7 +358,7 @@ export const IntegrationsView: React.FC = () => {
             </label>
             <input
               type="url"
-              value={formSettings.google_sheets_webhook_url}
+              value={formSettings.google_sheets_webhook_url ?? ''}
               onChange={(e) => setFormSettings({ ...formSettings, google_sheets_webhook_url: e.target.value })}
               className="w-full px-3 py-2 rounded-xl border border-stone-200 text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               placeholder="https://script.google.com/macros/s/.../exec"

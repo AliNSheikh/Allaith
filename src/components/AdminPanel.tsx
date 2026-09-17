@@ -1066,7 +1066,7 @@ export const AdminPanel: React.FC = () => {
                     </label>
                     <input
                       type="text"
-                      value={settingsForm.logo_url}
+                      value={settingsForm.logo_url ?? ''}
                       onChange={(e) => setSettingsForm({ ...settingsForm, logo_url: e.target.value })}
                       placeholder="https://example.com/logo.png"
                       className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs font-mono"
@@ -1133,7 +1133,7 @@ export const AdminPanel: React.FC = () => {
                       <input
                         type="number"
                         required
-                        value={settingsForm.usd_exchange_rate}
+                        value={settingsForm.usd_exchange_rate ?? 15000}
                         onChange={(e) => setSettingsForm({ ...settingsForm, usd_exchange_rate: Number(e.target.value) })}
                         className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono font-bold text-stone-900"
                       />
@@ -1158,7 +1158,7 @@ export const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={settingsForm.whatsapp_number}
+                        value={settingsForm.whatsapp_number ?? ''}
                         onChange={(e) => setSettingsForm({ ...settingsForm, whatsapp_number: e.target.value })}
                         className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono"
                         dir="ltr"
@@ -1171,7 +1171,7 @@ export const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="text"
-                        value={settingsForm.maintenance_whatsapp}
+                        value={settingsForm.maintenance_whatsapp ?? ''}
                         onChange={(e) => setSettingsForm({ ...settingsForm, maintenance_whatsapp: e.target.value })}
                         className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono"
                         dir="ltr"
@@ -1194,7 +1194,7 @@ export const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        value={settingsForm.delivery_fee_base}
+                        value={settingsForm.delivery_fee_base ?? 0}
                         onChange={(e) => setSettingsForm({ ...settingsForm, delivery_fee_base: Number(e.target.value) })}
                         className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono"
                       />
@@ -1206,7 +1206,7 @@ export const AdminPanel: React.FC = () => {
                       </label>
                       <input
                         type="number"
-                        value={settingsForm.free_delivery_threshold}
+                        value={settingsForm.free_delivery_threshold ?? 0}
                         onChange={(e) => setSettingsForm({ ...settingsForm, free_delivery_threshold: Number(e.target.value) })}
                         className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono"
                       />
@@ -1244,7 +1244,7 @@ export const AdminPanel: React.FC = () => {
                     </label>
                     <input
                       type="url"
-                      value={settingsForm.google_sheets_webhook_url}
+                      value={settingsForm.google_sheets_webhook_url ?? ''}
                       onChange={(e) => setSettingsForm({ ...settingsForm, google_sheets_webhook_url: e.target.value })}
                       placeholder="https://script.google.com/macros/s/.../exec"
                       className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs font-mono"
@@ -1328,7 +1328,7 @@ export const AdminPanel: React.FC = () => {
                     <input
                       type="text"
                       required
-                      value={editingProduct.title_ar}
+                      value={editingProduct.title_ar ?? ''}
                       onChange={(e) => setEditingProduct({ ...editingProduct, title_ar: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm"
                     />
@@ -1340,7 +1340,7 @@ export const AdminPanel: React.FC = () => {
                     <input
                       type="text"
                       required
-                      value={editingProduct.title_en}
+                      value={editingProduct.title_en ?? ''}
                       onChange={(e) => setEditingProduct({ ...editingProduct, title_en: e.target.value })}
                       className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm"
                     />
@@ -1739,7 +1739,7 @@ export const AdminPanel: React.FC = () => {
                               <input
                                 type="number"
                                 required
-                                value={editingProduct.price}
+                                value={editingProduct.price ?? 0}
                                 onChange={(e) => {
                                   const syp = Number(e.target.value);
                                   setEditingProduct({
@@ -1836,7 +1836,7 @@ export const AdminPanel: React.FC = () => {
                   <input
                     type="number"
                     required
-                    value={editingProduct.stock_quantity}
+                    value={editingProduct.stock_quantity ?? 0}
                     onChange={(e) => setEditingProduct({ ...editingProduct, stock_quantity: Number(e.target.value) })}
                     className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs sm:text-sm font-mono font-bold"
                   />
@@ -1882,7 +1882,7 @@ export const AdminPanel: React.FC = () => {
                   </label>
                   <textarea
                     rows={2}
-                    value={editingProduct.description_ar}
+                    value={editingProduct.description_ar ?? ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, description_ar: e.target.value })}
                     className="w-full px-3.5 py-2 rounded-xl border border-stone-200 text-xs"
                   />

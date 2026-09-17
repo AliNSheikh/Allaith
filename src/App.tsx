@@ -27,10 +27,35 @@ const MainLayout: React.FC = () => {
     setIsSiteDetailsOpen,
     selectedProduct,
     storeSettings,
-    locale
+    locale,
+    trackVisit
   } = useStore();
 
   const isAr = locale === 'ar';
+
+  // Live visitor tracking: track all customer store visits and page views moving forward
+  useEffect(() => {
+    if (currentView === 'admin') return;
+
+    let path = '/';
+    let title = isAr ? storeSettings.site_name_ar : storeSettings.site_name_en;
+
+    if (currentView === 'pdp' && selectedProduct) {
+      path = `/product/${selectedProduct.slug || selectedProduct.id}`;
+      title = isAr ? selectedProduct.name_ar : selectedProduct.name_en;
+    } else if (currentView === 'catalog') {
+      path = '/catalog';
+      title = isAr ? 'دليل الأجهزة والمنتجات | متجر الليث' : 'Products Catalog | Al-Laith';
+    } else if (currentView === 'offers') {
+      path = '/offers';
+      title = isAr ? 'العروض والتخفيضات | متجر الليث' : 'Special Offers | Al-Laith';
+    } else if (currentView === 'home') {
+      path = '/';
+      title = isAr ? storeSettings.site_name_ar : storeSettings.site_name_en;
+    }
+
+    trackVisit(path, title);
+  }, [currentView, selectedProduct?.id, trackVisit, isAr, storeSettings.site_name_ar, storeSettings.site_name_en]);
 
   // Dynamic SEO meta tags and browser title
   useEffect(() => {

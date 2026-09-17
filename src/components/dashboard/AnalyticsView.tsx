@@ -6,7 +6,6 @@ import {
   TrendingUp,
   ArrowUpRight,
   Download,
-  Share2,
   Calendar,
   Smartphone,
   Laptop,
@@ -20,7 +19,13 @@ import {
   Database,
   Filter,
   RefreshCw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Trash2,
+  AlertTriangle,
+  Radio,
+  Compass,
+  Store,
+  Clock
 } from 'lucide-react';
 import { useStore } from '../../context/StoreContext';
 import * as XLSX from 'xlsx';
@@ -28,20 +33,21 @@ import * as XLSX from 'xlsx';
 export const AnalyticsView: React.FC = () => {
   const {
     locale,
-    visitorStats,
     analyticsVisits,
     orders,
     products,
     formatPrice,
     storeSettings,
     showToast,
-    saveAllDataToSupabase
+    resetAnalyticsData,
+    saveAllDataToSupabase,
+    exitAdminPortal
   } = useStore();
 
   const isAr = locale === 'ar';
-  
+
   // Timeframe filter: 'today' | '7d' | 'this_month' | 'last_month' | 'custom'
-  const [timeFilter, setTimeFilter] = useState<'today' | '7d' | 'this_month' | 'last_month' | 'custom'>('7d');
+  const [timeFilter, setTimeFilter] = useState<'today' | '7d' | 'this_month' | 'last_month' | 'custom'>('today');
   const [customStartDate, setCustomStartDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() - 7);
@@ -50,9 +56,11 @@ export const AnalyticsView: React.FC = () => {
   const [customEndDate, setCustomEndDate] = useState<string>(() => {
     return new Date().toISOString().split('T')[0];
   });
-  
+
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Filter visit records based on selected timeframe
   const filteredVisits = useMemo(() => {
@@ -88,15 +96,100 @@ export const AnalyticsView: React.FC = () => {
     });
   }, [analyticsVisits, timeFilter, customStartDate, customEndDate]);
 
-  // Aggregate stats based on real logs + historical trend
-  const totalVisitorsCount = Math.max(filteredVisits.length * 8 + 145, 120);
-  const totalPageViewsCount = Math.max(filteredVisits.length * 19 + 420, 310);
+  // Genuine Real-Time Stats (Zero fake multipliers)
+  const totalVisitorsCount = useMemo(() => {
+    return new Set(filteredVisits.map((v) => v.visitor_id)).size;
+  }, [filteredVisits]);
+
+  const totalPageViewsCount = filteredVisits.length;
   const totalOrdersCount = orders.length;
   const totalRevenueSYP = orders.reduce((acc, o) => acc + (o.total || o.subtotal || 0), 0);
-  const conversionRate = totalVisitorsCount > 0 ? ((totalOrdersCount / totalVisitorsCount) * 100).toFixed(2) : '3.45';
+  const conversionRate = totalVisitorsCount > 0 ? ((totalOrdersCount / totalVisitorsCount) * 100).toFixed(1) : '0.0';
+
+  // Live active visitors (visited in the last 15 minutes)
+  const liveActiveCount = useMemo(() => {
+    const fifteenMinAgo = Date.now() - 15 * 60 * 1000;
+    const active = new Set(
+      analyticsVisits
+        .filter((v) => new Date(v.timestamp).getTime() >= fifteenMinAgo)
+        .map((v) => v.visitor_id)
+    );
+    return Math.max(active.size, 1);
+  }, [analyticsVisits]);
+
+  // Device Breakdown computed dynamically from real filtered visits
+  const deviceStats = useMemo(() => {
+    const counts = { mobile: 0, desktop: 0, tablet: 0 };
+    filteredVisits.forEach((v) => {
+      if (v.device === 'mobile') counts.mobile++;
+      else if (v.device === 'tablet') counts.tablet++;
+      else counts.desktop++;
+    });
+    const total = filteredVisits.length;
+    return {
+      mobile: counts.mobile,
+      desktop: counts.desktop,
+      tablet: counts.tablet,
+      mobilePct: total > 0 ? Math.round((counts.mobile / total) * 100) : 0,
+      desktopPct: total > 0 ? Math.round((counts.desktop / total) * 100) : 0,
+      tabletPct: total > 0 ? Math.round((counts.tablet / total) * 100) : 0
+    };
+  }, [filteredVisits]);
+
+  // Top Visited Pages
+  const topPages = useMemo(() => {
+    const map: Record<string, { path: string; title: string; count: number }> = {};
+    filteredVisits.forEach((v) => {
+      if (!map[v.path]) {
+        map[v.path] = { path: v.path, title: v.page_title || v.path, count: 0 };
+      }
+      map[v.path].count++;
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [filteredVisits]);
+
+  // Top Traffic Sources / Referrers
+  const topReferrers = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredVisits.forEach((v) => {
+      const ref = v.referrer || 'Direct';
+      map[ref] = (map[ref] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  }, [filteredVisits]);
+
+  // Governorate distribution computed from real customer orders
+  const governorateStats = useMemo(() => {
+    const map: Record<string, number> = {};
+    orders.forEach((o) => {
+      const g = o.governorate || 'اللاذقية';
+      map[g] = (map[g] || 0) + 1;
+    });
+    const total = orders.length || 1;
+    const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-sky-500', 'bg-amber-500', 'bg-rose-500'];
+    const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
+
+    if (entries.length === 0) {
+      return [
+        { name_ar: 'اللاذقية', name_en: 'Latakia', percentage: 0, count: isAr ? 'لا توجد طلبات بعد' : 'No orders yet', color: 'bg-emerald-500' }
+      ];
+    }
+
+    return entries.slice(0, 5).map(([name, count], idx) => ({
+      name_ar: name,
+      name_en: name,
+      percentage: Math.round((count / total) * 100),
+      count: isAr ? `${count} طلب` : `${count} orders`,
+      color: colors[idx % colors.length]
+    }));
+  }, [orders, isAr]);
 
   // Export to Excel XLSX
   const exportToExcel = () => {
+    if (filteredVisits.length === 0) {
+      showToast(isAr ? 'لا توجد بيانات زيارات لتصديرها حالياً' : 'No visits data to export yet');
+      return;
+    }
     const dataToExport = filteredVisits.map((v, idx) => ({
       '#': idx + 1,
       'Date & Time': new Date(v.timestamp).toLocaleString(),
@@ -117,6 +210,10 @@ export const AnalyticsView: React.FC = () => {
 
   // Export to CSV
   const exportAnalyticsCsv = () => {
+    if (filteredVisits.length === 0) {
+      showToast(isAr ? 'لا توجد بيانات زيارات لتصديرها حالياً' : 'No visits data to export yet');
+      return;
+    }
     let csv = 'ID,Timestamp,Path,PageTitle,Device,Referrer,VisitorID\n';
     filteredVisits.forEach((v) => {
       csv += `"${v.id}","${v.timestamp}","${v.path}","${v.page_title}","${v.device}","${v.referrer}","${v.visitor_id}"\n`;
@@ -131,12 +228,26 @@ export const AnalyticsView: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  const handleSaveChanges = () => {
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      showToast(isAr ? 'تم حفظ كافة بيانات التحليلات والإعدادات بنجاح!' : 'Analytics changes and settings saved successfully!');
-    }, 500);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/analytics/summary');
+      const data = await res.json();
+      showToast(
+        isAr
+          ? `تم تحديث البيانات! إجمالي الزيارات المسجلة في السيرفر: ${data.total_visits}`
+          : `Analytics refreshed! Total server visits: ${data.total_visits}`
+      );
+    } catch {
+      showToast(isAr ? 'تم تحديث العرض' : 'Refreshed');
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 400);
+    }
+  };
+
+  const handleExecuteReset = async () => {
+    await resetAnalyticsData();
+    setShowResetConfirm(false);
   };
 
   const handleSyncSupabase = async () => {
@@ -145,62 +256,119 @@ export const AnalyticsView: React.FC = () => {
     setIsSyncingSupabase(false);
   };
 
-  // Governorate distribution for Syrian nationwide market
-  const governorateStats = [
-    { name_ar: 'اللاذقية (المقر الرئيسي)', name_en: 'Latakia (Headquarters)', percentage: 44, count: '3,850 زائر', color: 'bg-emerald-500' },
-    { name_ar: 'دمشق وريف دمشق', name_en: 'Damascus & Rif Dimashq', percentage: 27, count: '2,570 زائر', color: 'bg-indigo-500' },
-    { name_ar: 'حمص', name_en: 'Homs', percentage: 12, count: '1,100 زائر', color: 'bg-sky-500' },
-    { name_ar: 'حلب', name_en: 'Aleppo', percentage: 10, count: '920 زائر', color: 'bg-amber-500' },
-    { name_ar: 'طرطوس والساحل', name_en: 'Tartus & Coast', percentage: 7, count: '730 زائر', color: 'bg-rose-500' },
-  ];
-
   return (
     <div className="space-y-6 pb-12" dir={isAr ? 'rtl' : 'ltr'}>
-      {/* Top Header with Save Changes & Live Indicator */}
+      {/* Top Header with Live Indicator, Reset & Sync Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-stone-200/90 shadow-xs">
         <div>
-          <h2 className="text-lg font-black text-stone-900 flex items-center gap-2">
-            <span>{isAr ? 'إحصائيات وزوار متجر الليث' : 'Store Traffic & Analytics'}</span>
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black text-stone-900">
+              {isAr ? 'إحصائيات وزوار متجر الليث (تتبع مباشر)' : 'Live Store Traffic & Analytics'}
+            </h2>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span>{isAr ? `${liveActiveCount} متصل الآن` : `${liveActiveCount} online now`}</span>
             </span>
-          </h2>
-          <p className="text-xs text-stone-500 mt-0.5">
+          </div>
+          <p className="text-xs text-stone-500 mt-1">
             {isAr
-              ? 'تتبع حقيقي ودائم للزيارات مع خيارات تصفية دقيقة وحفظ سحابي'
-              : 'Permanent visit tracking with precise filtering and cloud persistence'}
+              ? 'تتبع دقيق وحقيقي للزيارات يبدأ من هذه اللحظة، مع إمكانية التصفير والمزامنة والتصدير'
+              : 'Real-time visit tracking active from now on, with full reset, sync, and export'}
           </p>
         </div>
 
-        {/* Global Save Changes & Supabase Sync Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Global Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Refresh button */}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 hover:bg-stone-100 active:scale-95 text-stone-700 text-xs font-bold transition-all border border-stone-200 cursor-pointer disabled:opacity-50"
+            title={isAr ? 'تحديث البيانات' : 'Refresh analytics'}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-stone-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isAr ? 'تحديث مباشر' : 'Refresh'}</span>
+          </button>
+
+          {/* Sync Supabase */}
           <button
             type="button"
             onClick={handleSyncSupabase}
             disabled={isSyncingSupabase}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 active:scale-95 text-stone-700 text-xs font-bold transition-all border border-stone-300 cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-stone-50 hover:bg-stone-100 active:scale-95 text-stone-700 text-xs font-bold transition-all border border-stone-200 cursor-pointer disabled:opacity-50"
             title="Sync with Supabase"
           >
-            <Database className="w-4 h-4 text-emerald-600" />
-            <span>{isSyncingSupabase ? (isAr ? 'جارِ المزامنة...' : 'Syncing...') : (isAr ? 'مزامنة مع Supabase' : 'Sync Supabase')}</span>
+            <Database className="w-3.5 h-3.5 text-emerald-600" />
+            <span>{isSyncingSupabase ? (isAr ? 'جارِ المزامنة...' : 'Syncing...') : (isAr ? 'مزامنة Supabase' : 'Sync')}</span>
           </button>
 
+          {/* Reset & Start Fresh Button */}
           <button
             type="button"
-            onClick={handleSaveChanges}
-            disabled={isSaving}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold transition-all shadow-sm shadow-emerald-600/20 cursor-pointer disabled:opacity-50"
+            onClick={() => setShowResetConfirm(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 border border-rose-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            title={isAr ? 'حذف وتصفير كافة سجلات الزيارات' : 'Delete & reset visit logs'}
           >
-            {isSaving ? (
-              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            <span>{isAr ? 'حفظ التعديلات' : 'Save Changes'}</span>
+            <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+            <span>{isAr ? 'تصفير وسجل زيارات جديد' : 'Reset & Clear Data'}</span>
+          </button>
+
+          {/* Test Live Visit */}
+          <button
+            type="button"
+            onClick={exitAdminPortal}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer shadow-sm shadow-emerald-600/20"
+            title={isAr ? 'الانتقال إلى واجهة المتجر لتسجيل زيارات حية' : 'Visit store to test live tracking'}
+          >
+            <Store className="w-3.5 h-3.5" />
+            <span>{isAr ? 'زيارة المتجر لتجربة الرصد' : 'Visit Storefront'}</span>
           </button>
         </div>
       </div>
+
+      {/* Confirmation Modal for Reset */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 bg-stone-950/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white max-w-md w-full rounded-2xl p-5 border border-stone-200 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-black text-stone-900">
+                  {isAr ? 'تأكيد تصفير وحذف بيانات الزيارات' : 'Confirm Analytics & Visits Reset'}
+                </h3>
+                <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                  {isAr
+                    ? 'سيتم حذف وتصفير كافة سجلات الزيارات والمشاهدات السابقة بالكامل، وسيبدأ النظام برصد وتسجيل الزيارات الحقيقية للمتجر من الصفر ابتداءً من هذه اللحظة.'
+                    : 'All previous visit logs and impression counts will be permanently erased. Tracking will restart clean from zero from this moment onward.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-stone-100">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                {isAr ? 'إلغاء' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReset}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all cursor-pointer shadow-sm shadow-rose-600/20"
+              >
+                {isAr ? 'نعم، تصفير والبدء من الآن' : 'Yes, Reset to Zero'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Timeframe Filters Bar */}
       <div className="bg-white p-4 rounded-2xl border border-stone-200/90 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -296,7 +464,7 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* KPI Cards Grid (Accurate Real-Time Values) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Visitors */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs relative overflow-hidden">
@@ -312,12 +480,12 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-2xl font-black text-stone-900 font-mono">
               {totalVisitorsCount.toLocaleString()}
             </span>
-            <span className="inline-flex items-center text-xs font-bold text-emerald-600">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +14.8%
+            <span className="text-[11px] font-bold text-stone-500">
+              {isAr ? 'زائر' : 'visitors'}
             </span>
           </div>
           <span className="text-[11px] text-stone-400 mt-1 block">
-            {isAr ? 'محسوب بدقة في الفترة المحددة' : 'Calculated for selected period'}
+            {isAr ? 'بناءً على المعرفات الحقيقية المسجلة' : 'Based on real recorded IDs'}
           </span>
         </div>
 
@@ -335,12 +503,12 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-2xl font-black text-stone-900 font-mono">
               {totalPageViewsCount.toLocaleString()}
             </span>
-            <span className="inline-flex items-center text-xs font-bold text-emerald-600">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +22.4%
+            <span className="text-[11px] font-bold text-stone-500">
+              {isAr ? 'مشاهدة' : 'views'}
             </span>
           </div>
           <span className="text-[11px] text-stone-400 mt-1 block">
-            {isAr ? 'تصفح أجهزة وهواتف الليث' : 'Catalog & PDP impressions'}
+            {isAr ? 'تصفح الصفحات والأجهزة والكتالوج' : 'Catalog & PDP impressions'}
           </span>
         </div>
 
@@ -358,12 +526,12 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-2xl font-black text-stone-900 font-mono">
               {totalOrdersCount}
             </span>
-            <span className="inline-flex items-center text-xs font-bold text-emerald-600">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +8.1%
+            <span className="text-[11px] font-bold text-stone-500">
+              {isAr ? 'طلب' : 'orders'}
             </span>
           </div>
           <span className="text-[11px] text-stone-400 mt-1 block">
-            {isAr ? 'طلبات مؤكدة ومسجلة' : 'Confirmed sales orders'}
+            {isAr ? 'طلبات مؤكدة ومسجلة في النظام' : 'Confirmed sales orders in store'}
           </span>
         </div>
 
@@ -371,7 +539,7 @@ export const AnalyticsView: React.FC = () => {
         <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-stone-500">
-              {isAr ? 'معدل التحويل' : 'Conversion Rate'}
+              {isAr ? 'معدل التحويل الحقيقي' : 'Real Conversion Rate'}
             </span>
             <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
               <TrendingUp className="w-4 h-4" />
@@ -381,12 +549,9 @@ export const AnalyticsView: React.FC = () => {
             <span className="text-2xl font-black text-stone-900 font-mono">
               {conversionRate}%
             </span>
-            <span className="inline-flex items-center text-xs font-bold text-emerald-600">
-              <ArrowUpRight className="w-3.5 h-3.5" /> +1.2%
-            </span>
           </div>
           <span className="text-[11px] text-stone-400 mt-1 block">
-            {isAr ? 'زوار تحولوا إلى مشترين' : 'Shoppers completed checkout'}
+            {isAr ? 'نسبة الزوار الذين أتموا طلب شراء' : 'Percentage of visitors who ordered'}
           </span>
         </div>
       </div>
@@ -395,17 +560,27 @@ export const AnalyticsView: React.FC = () => {
       <div className="bg-white rounded-2xl border border-stone-200/90 shadow-xs overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-black text-stone-900">
-              {isAr ? 'سجل الزيارات الدائم والمباشر' : 'Permanent Visit Activity Log'}
-            </h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-stone-900">
+                {isAr ? 'سجل الزيارات المباشر والدائم' : 'Live & Permanent Visit Activity Log'}
+              </h3>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {isAr ? 'تتبع نشط' : 'Tracking Active'}
+              </span>
+            </div>
             <p className="text-xs text-stone-500 mt-0.5">
-              {isAr
-                ? `عرض ${filteredVisits.length} زيارة مسجلة ومحفوظة ضمن الفترة المحددة`
-                : `Showing ${filteredVisits.length} recorded visits for current filter`}
+              {filteredVisits.length > 0
+                ? (isAr
+                  ? `عرض ${filteredVisits.length} زيارة مسجلة ومحفوظة ضمن الفترة المحددة`
+                  : `Showing ${filteredVisits.length} recorded visits for current filter`)
+                : (isAr
+                  ? 'تم تصفير البيانات بنجاح • سيتم تسجيل أي زيارة جديدة فور تصفح الموقع'
+                  : 'Data reset successfully • New visits will appear immediately')}
             </p>
           </div>
           <div className="text-xs text-stone-400 font-mono">
-            {isAr ? 'تخزين دائم في المتصفح و Supabase' : 'Permanent local & Supabase storage'}
+            {isAr ? 'تخزين دائم في الذاكرة والمتصفح والسيرفر' : 'Permanent local & server logging'}
           </div>
         </div>
 
@@ -422,10 +597,10 @@ export const AnalyticsView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">
-              {filteredVisits.slice(0, 15).map((visit) => (
+              {filteredVisits.slice(0, 20).map((visit) => (
                 <tr key={visit.id} className="hover:bg-stone-50/70 transition-colors">
                   <td className="py-2.5 px-4 font-mono text-stone-600 whitespace-nowrap">
-                    {new Date(visit.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}{' '}
+                    {new Date(visit.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{' '}
                     <span className="text-[10px] text-stone-400">
                       {new Date(visit.timestamp).toLocaleDateString()}
                     </span>
@@ -433,7 +608,7 @@ export const AnalyticsView: React.FC = () => {
                   <td className="py-2.5 px-4 font-mono text-emerald-700 font-bold whitespace-nowrap">
                     {visit.path}
                   </td>
-                  <td className="py-2.5 px-4 text-stone-800 whitespace-nowrap">
+                  <td className="py-2.5 px-4 text-stone-800 whitespace-nowrap max-w-[220px] truncate">
                     {visit.page_title || 'Al-Laith Telecom'}
                   </td>
                   <td className="py-2.5 px-4 whitespace-nowrap">
@@ -454,8 +629,28 @@ export const AnalyticsView: React.FC = () => {
               ))}
               {filteredVisits.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-stone-400">
-                    {isAr ? 'لا توجد سجلات زيارات ضمن الفترة الزمنية المحددة' : 'No visit records found in selected timeframe'}
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 mx-auto flex items-center justify-center border border-emerald-200">
+                        <Radio className="w-6 h-6 animate-pulse" />
+                      </div>
+                      <h4 className="text-sm font-bold text-stone-800">
+                        {isAr ? 'تم تصفير سجلات الزيارات بنجاح' : 'Visits Data Reset Successfully'}
+                      </h4>
+                      <p className="text-xs text-stone-500 leading-relaxed">
+                        {isAr
+                          ? 'نظام التتبع المباشر نشط الآن: في اللحظة التي يدخل فيها أي زائر إلى المتجر أو يتصفح المنتجات والأقسام، سيتم تسجيل زيارته وتحديث هذا الجدول تلقائياً.'
+                          : 'Live tracking is now active. As soon as visitors browse the store, their visits, devices, and paths will be captured in real time right here.'}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={exitAdminPortal}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition-all cursor-pointer shadow-sm"
+                      >
+                        <Store className="w-3.5 h-3.5" />
+                        <span>{isAr ? 'تصفح المتجر الآن لتسجيل زيارة تجريبية' : 'Open Storefront to Trigger a Live Visit'}</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -464,16 +659,90 @@ export const AnalyticsView: React.FC = () => {
         </div>
       </div>
 
+      {/* Top Visited Pages & Traffic Sources */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Visited Pages */}
+        <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
+              <Compass className="w-4 h-4 text-indigo-600" />
+              <span>{isAr ? 'أكثر الصفحات والمسارات زيارة' : 'Top Visited Pages'}</span>
+            </h3>
+            <span className="text-xs text-stone-400 font-mono">
+              {topPages.length} {isAr ? 'صفحات نشطة' : 'active paths'}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {topPages.map((page, idx) => (
+              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 border border-stone-100 text-xs">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-5 h-5 rounded-md bg-stone-200 text-stone-700 font-mono font-bold flex items-center justify-center text-[10px] shrink-0">
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="font-mono font-bold text-emerald-800 truncate">{page.path}</p>
+                    <p className="text-[11px] text-stone-500 truncate">{page.title}</p>
+                  </div>
+                </div>
+                <span className="font-mono font-bold text-stone-900 px-2 py-0.5 rounded-md bg-white border border-stone-200 text-xs shrink-0">
+                  {page.count} {isAr ? 'مشاهدة' : 'views'}
+                </span>
+              </div>
+            ))}
+            {topPages.length === 0 && (
+              <div className="py-8 text-center text-xs text-stone-400">
+                {isAr ? 'سيتم تصنيف الصفحات الأكثر زيارة فور بدء تصفح المتجر' : 'Top visited pages will appear as visitors browse'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Traffic Sources / Referrers */}
+        <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
+              <ExternalLink className="w-4 h-4 text-emerald-600" />
+              <span>{isAr ? 'مصادر الزيارات والإحالات (Referrers)' : 'Traffic Sources & Referrers'}</span>
+            </h3>
+            <span className="text-xs text-stone-400 font-mono">
+              {topReferrers.length} {isAr ? 'مصادر' : 'sources'}
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {topReferrers.map(([ref, count], idx) => (
+              <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl bg-stone-50 border border-stone-100 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="font-bold text-stone-800">{ref}</span>
+                </div>
+                <span className="font-mono font-bold text-stone-900 px-2 py-0.5 rounded-md bg-white border border-stone-200 text-xs">
+                  {count} {isAr ? 'زيارة' : 'visits'}
+                </span>
+              </div>
+            ))}
+            {topReferrers.length === 0 && (
+              <div className="py-8 text-center text-xs text-stone-400">
+                {isAr ? 'سيتم تسجيل مصادر الزيارات (مباشر، محركات بحث، تواصل اجتماعي) فور بدء الزيارات' : 'Traffic sources will be recorded as visitors arrive'}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Governorate Distribution & Device Split */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Governorates */}
+        {/* Governorates from actual orders */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
               <MapPin className="w-4 h-4 text-emerald-600" />
-              <span>{isAr ? 'التوزيع الجغرافي للزيارات في المحافظات' : 'Geographic Distribution (Syria)'}</span>
+              <span>{isAr ? 'التوزيع الجغرافي للمبيعات والطلبات بالمحافظات' : 'Order Distribution by Syrian Governorate'}</span>
             </h3>
-            <span className="text-xs text-stone-500 font-bold">{isAr ? 'اللاذقية بالصدارة' : 'Latakia Leading'}</span>
+            <span className="text-xs text-stone-500 font-bold">
+              {orders.length} {isAr ? 'طلب مسجل' : 'total orders'}
+            </span>
           </div>
 
           <div className="space-y-3">
@@ -494,35 +763,44 @@ export const AnalyticsView: React.FC = () => {
           </div>
         </div>
 
-        {/* Devices Breakdown */}
+        {/* Devices Breakdown (Actual Real Visits Breakdown) */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200/90 shadow-xs">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-black text-stone-900 flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-amber-500" />
               <span>{isAr ? 'توزيع الأجهزة المستخدمة للتسوق' : 'Device Breakdown'}</span>
             </h3>
-            <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md font-bold">
-              {isAr ? '76% هواتف ذكية' : '76% Mobile'}
+            <span className="text-xs text-stone-500 font-mono">
+              {filteredVisits.length} {isAr ? 'زيارة مفحوصة' : 'tracked visits'}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-3 pt-2">
             <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200/60 text-center">
               <Smartphone className="w-6 h-6 text-amber-600 mx-auto mb-1.5" />
-              <div className="text-lg font-black text-stone-900 font-mono">76%</div>
+              <div className="text-lg font-black text-stone-900 font-mono">
+                {deviceStats.mobilePct}%
+              </div>
               <div className="text-[11px] font-bold text-stone-600">{isAr ? 'هواتف ذكية' : 'Mobile'}</div>
+              <div className="text-[10px] text-stone-400 font-mono mt-0.5">({deviceStats.mobile})</div>
             </div>
 
             <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200/60 text-center">
               <Laptop className="w-6 h-6 text-blue-600 mx-auto mb-1.5" />
-              <div className="text-lg font-black text-stone-900 font-mono">19%</div>
+              <div className="text-lg font-black text-stone-900 font-mono">
+                {deviceStats.desktopPct}%
+              </div>
               <div className="text-[11px] font-bold text-stone-600">{isAr ? 'أجهزة حاسوب' : 'Desktop'}</div>
+              <div className="text-[10px] text-stone-400 font-mono mt-0.5">({deviceStats.desktop})</div>
             </div>
 
             <div className="p-4 rounded-xl bg-purple-50/60 border border-purple-200/60 text-center">
               <Tablet className="w-6 h-6 text-purple-600 mx-auto mb-1.5" />
-              <div className="text-lg font-black text-stone-900 font-mono">5%</div>
+              <div className="text-lg font-black text-stone-900 font-mono">
+                {deviceStats.tabletPct}%
+              </div>
               <div className="text-[11px] font-bold text-stone-600">{isAr ? 'أجهزة لوحية' : 'Tablets'}</div>
+              <div className="text-[10px] text-stone-400 font-mono mt-0.5">({deviceStats.tablet})</div>
             </div>
           </div>
         </div>

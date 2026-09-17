@@ -219,7 +219,37 @@ export async function fetchProductsFromSupabase(): Promise<Product[] | null> {
       console.warn('Could not fetch products from Supabase:', error.message);
       return null;
     }
-    return (data || []) as Product[];
+    return ((data || []) as any[]).map((p) => ({
+      ...p,
+      title_ar: p.title_ar ?? '',
+      title_en: p.title_en ?? p.title_ar ?? '',
+      slug: p.slug ?? p.id,
+      description_ar: p.description_ar ?? '',
+      description_en: p.description_en ?? '',
+      category_id: p.category_id ?? 'cat-smartphones',
+      brand: p.brand ?? 'Al-Laith',
+      price: Number(p.price) || 0,
+      price_usd: Number(p.price_usd) || 0,
+      compare_at_price: p.compare_at_price != null ? Number(p.compare_at_price) : 0,
+      compare_at_price_usd: p.compare_at_price_usd != null ? Number(p.compare_at_price_usd) : 0,
+      has_discount: Boolean(p.has_discount),
+      discount_percent: Number(p.discount_percent) || 0,
+      condition: p.condition ?? 'new',
+      condition_details: p.condition_details ?? '',
+      device_type: p.device_type ?? 'smartphone',
+      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : ['https://images.unsplash.com/photo-1592750475338-74b7b21085ab'],
+      variants: Array.isArray(p.variants) ? p.variants : [],
+      specs: Array.isArray(p.specs) ? p.specs : [],
+      stock_quantity: p.stock_quantity != null ? Number(p.stock_quantity) : 0,
+      is_featured: Boolean(p.is_featured),
+      is_archived: Boolean(p.is_archived),
+      rating: p.rating != null ? Number(p.rating) : 5,
+      reviews_count: p.reviews_count != null ? Number(p.reviews_count) : 0,
+      sku: p.sku ?? '',
+      warranty_ar: p.warranty_ar ?? '',
+      warranty_en: p.warranty_en ?? '',
+      created_at: p.created_at ?? new Date().toISOString()
+    })) as Product[];
   } catch (e) {
     console.warn('Error querying products from Supabase:', e);
     return null;
@@ -494,18 +524,21 @@ export async function fetchSettingsFromSupabase(): Promise<Partial<StoreSettings
 
     if (error || !data) return null;
     return {
-      site_name_ar: data.site_name_ar,
-      site_name_en: data.site_name_en,
-      custom_logo_url: data.custom_logo_url || data.logo_url,
-      whatsapp_number: data.whatsapp_number,
-      maintenance_whatsapp: data.maintenance_whatsapp,
+      site_name_ar: data.site_name_ar ?? 'متجر الليث للهواتف الذكية',
+      site_name_en: data.site_name_en ?? 'Al-Laith Smart Phones',
+      custom_logo_url: data.custom_logo_url ?? data.logo_url ?? '',
+      whatsapp_number: data.whatsapp_number ?? '0937861787',
+      maintenance_whatsapp: data.maintenance_whatsapp ?? '0937861787',
       usd_exchange_rate: Number(data.usd_exchange_rate) || 15000,
-      store_address_ar: data.store_address_ar,
-      store_address_en: data.store_address_en,
-      store_phone: data.store_phone,
-      store_email: data.store_email,
+      store_address_ar: data.store_address_ar ?? 'اللاذقية - شارع 8 آذار - مقابل بنك بيمو',
+      store_address_en: data.store_address_en ?? 'Latakia, 8th of March St, Facing BEMO Bank',
+      store_phone: data.store_phone ?? '041221199',
+      store_email: data.store_email ?? 'info@allaith-store.com',
       store_lat: Number(data.store_lat) || 35.524917,
-      store_lng: Number(data.store_lng) || 35.852556
+      store_lng: Number(data.store_lng) || 35.852556,
+      google_sheets_webhook_url: data.google_sheets_webhook_url ?? '',
+      delivery_fee_base: data.delivery_fee_base != null ? Number(data.delivery_fee_base) : 25000,
+      free_delivery_threshold: data.free_delivery_threshold != null ? Number(data.free_delivery_threshold) : 5000000
     };
   } catch {
     return null;
